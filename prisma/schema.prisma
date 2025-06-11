@@ -1,0 +1,70 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  username     String       @unique
+  email        String       @unique
+  password     String
+  role         String       @default("user") // "user" or "admin"
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  attendances  Attendance[]
+}
+
+model Attendance {
+  id                    String    @id @default(cuid())
+  date                  DateTime
+  shift                 String // "Reguler", "Pagi", "Siang", "Malam"
+  checkInTime           DateTime
+  checkOutTime          DateTime?
+  attendanceSheetPhoto  String?   // URL dari Vercel Blob
+  selfiePhoto           String?   // URL dari Vercel Blob
+  checkInStatus         String
+  checkOutStatus        String?
+  checkOutSelfiePhoto   String? 
+  
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  logbook               LogbookEntry[]
+
+  @@index([userId, date])
+}
+
+model LogbookEntry {
+  id            String      @id @default(cuid())
+  content       String
+  attendanceId  String
+  attendance    Attendance  @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+}
+
+// Model untuk pengaturan aplikasi
+model AppSettings {
+  id                           String @id @default("singleton") // Hanya akan ada satu baris data
+  allowEmployeeDashboardAccess Boolean @default(true)
+  allowEmployeeViewAllRecords  Boolean @default(false)
+  requirePhotoForCheckIn       Boolean @default(true)
+  allowLogbookEdit             Boolean @default(true)
+}
+
+// Model untuk pengaturan waktu shift
+model TimeSettings {
+  id                String @id @default(cuid())
+  shiftName         String @unique // "Reguler", "Pagi", "Siang", "Malam"
+  checkInStart      String // "HH:mm"
+  checkInEnd        String // "HH:mm"
+  checkOutStart     String // "HH:mm"
+  checkOutEnd       String // "HH:mm"
+  overtimeThreshold String // "HH:mm"
+}

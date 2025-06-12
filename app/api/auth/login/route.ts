@@ -21,7 +21,6 @@ export async function POST(req: Request) {
       return new NextResponse("Invalid credentials", { status: 401 });
     }
 
-    // KEMBALIKAN KE BCRYPT.COMPARE
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
@@ -35,15 +34,12 @@ export async function POST(req: Request) {
     );
 
     const { password: _, ...userWithoutPassword } = user;
-
     const response = NextResponse.json({ user: userWithoutPassword, token });
     
-    // Set cookie di browser
     response.cookies.set('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        // sameSite: 'strict',
-        sameSite: 'lax', 
+        sameSite: 'lax', // Menggunakan 'lax' lebih fleksibel dari 'strict'
         path: '/',
         maxAge: 60 * 60 * 24, // 1 hari
     });

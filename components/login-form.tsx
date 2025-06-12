@@ -33,7 +33,7 @@ export default function LoginForm() {
 
       if (response.ok) {
         // Login berhasil, token sudah di-set di cookie oleh server
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       } else {
         const data = await response.json();
         setError(data.message || "Username atau password salah.");

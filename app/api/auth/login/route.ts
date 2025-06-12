@@ -21,25 +21,10 @@ export async function POST(req: Request) {
       return new NextResponse("Invalid credentials", { status: 401 });
     }
 
-    // --- BLOK DEBUG YANG KITA TAMBAHKAN ---
-    console.log("================ DEBUG LOGIN ================");
-    console.log("Password dari Form:", password);
-    console.log("Password dari DB  :", user.password);
-    console.log("Tipe data Form    :", typeof password);
-    console.log("Tipe data DB      :", typeof user.password);
-    console.log("Apakah sama?      :", password === user.password);
-    console.log("===========================================");
-    // --- AKHIR BLOK DEBUG ---
-
-    const passwordMatch = (password === user.password);
-    // const passwordMatch = await bcrypt.compare(password, user.password);
-
-    // if (!passwordMatch) {
-    //   return new NextResponse("Invalid credentials", { status: 401 });
-    // }
+    // KEMBALIKAN KE BCRYPT.COMPARE
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
-      console.log(`DEBUG: Perbandingan password untuk user '${username}' GAGAL.`);
       return new NextResponse("Invalid credentials", { status: 401 });
     }
 

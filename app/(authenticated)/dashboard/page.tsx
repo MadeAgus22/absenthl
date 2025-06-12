@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from 'swr';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -14,48 +14,31 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Shift } from "@/lib/types";
 import { DateRange } from "react-day-picker";
 import { addDays, format as formatDateFns } from "date-fns";
-import { id as indonesiaLocale } from "date-fns/locale"; // Impor locale untuk bahasa Indonesia
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Label } from "@/components/ui/label";
-import { useSession } from "../session-provider"; // <-- PERBAIKAN 1: Impor hook useSession
+import { useSession } from "../session-provider";
 
-// Tipe data dari API
 type AttendanceRecord = {
-    id: string;
-    date: string;
-    checkInTime: string;
-    checkOutTime: string | null;
-    shift: Shift;
-    checkInStatus: string;
-    checkOutStatus: string | null;
-    attendanceSheetPhoto: string | null;
-    selfiePhoto: string | null;
-    checkOutSelfiePhoto: string | null;
-    user: {
-        id: string;
-        name: string;
-    };
-    logbook: {
-        content: string
-    }[];
+    id: string; date: string; checkInTime: string; checkOutTime: string | null; shift: Shift;
+    checkInStatus: string; checkOutStatus: string | null; attendanceSheetPhoto: string | null;
+    selfiePhoto: string | null; checkOutSelfiePhoto: string | null;
+    user: { id: string; name: string; };
+    logbook: { content: string }[];
 };
 
-// Fetcher function untuk SWR, sudah benar
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(res => {
-    if (!res.ok) throw new Error("Gagal memuat data riwayat absensi.");
+    if (!res.ok) throw new Error("Gagal memuat riwayat absensi.");
     return res.json();
 });
 
-export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen menjadi lebih deskriptif
-    const session = useSession(); // <-- PERBAIKAN 2: Gunakan hook useSession untuk mendapatkan data user
+export default function DashboardPage() {
+    const session = useSession();
     const user = session?.user;
 
-    // State untuk filter dan paginasi
     const [date, setDate] = useState<DateRange | undefined>({ from: addDays(new Date(), -30), to: new Date() });
     const [limit, setLimit] = useState<number>(10);
     const [page, setPage] = useState<number>(1);
 
-    // Membuat URL SWR yang dinamis
     const fromDate = date?.from ? formatDateFns(date.from, 'yyyy-MM-dd') : '';
     const toDate = date?.to ? formatDateFns(date.to, 'yyyy-MM-dd') : fromDate;
     const swrUrl = fromDate ? `/api/attendance?page=${page}&limit=${limit}&from=${fromDate}&to=${toDate}` : null;
@@ -66,13 +49,11 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
     const totalRecords = data?.total ?? 0;
     const totalPages = Math.ceil(totalRecords / limit);
 
-    // State untuk dialog
     const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
     const [logbookViewerOpen, setLogbookViewerOpen] = useState(false);
     const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; title: string; date: string; name: string } | null>(null);
     const [selectedLogbook, setSelectedLogbook] = useState<AttendanceRecord | null>(null);
 
-    // Fungsi pembantu format tanggal dan waktu
     const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const formatTime = (timeString: string | null) => timeString ? new Date(timeString).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
 
@@ -80,25 +61,21 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
         if (!photoUrl) return;
         setSelectedPhoto({ url: photoUrl, title, date, name });
         setPhotoViewerOpen(true);
-    }
+    };
 
     const openLogbookViewer = (item: AttendanceRecord) => {
         setSelectedLogbook(item);
         setLogbookViewerOpen(true);
-    }
+    };
 
     const tableColumnCount = user?.role === 'admin' ? 11 : 10;
-    
-    // PERBAIKAN 3: Buat komponen Badge Status yang lebih dinamis
+
     const StatusBadge = ({ status }: { status: string | null }) => {
         if (!status) return <Badge variant="outline">-</Badge>;
-
         let variant: "default" | "destructive" | "secondary" | "outline" = "outline";
         if (status === "Tepat Waktu") variant = "default";
         if (status === "Terlambat") variant = "destructive";
         if (status === "Lembur") variant = "secondary";
-        if (status === "Belum Absen") variant = "outline";
-
         return <Badge variant={variant}>{status}</Badge>;
     };
 
@@ -108,19 +85,16 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
                 <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
                 <p className="text-muted-foreground">Selamat datang, {user?.name || "..."}! Berikut adalah riwayat absensi Anda.</p>
             </div>
-            
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Kehadiran</CardTitle>
-                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{totalRecords}</div>}
-                        <p className="text-xs text-muted-foreground">Dalam rentang tanggal terpilih</p>
-                    </CardContent>
-                </Card>
-            </div>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Kehadiran</CardTitle>
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Skeleton className="h-8 w-1/4" /> : <div className="text-2xl font-bold">{totalRecords}</div>}
+                    <p className="text-xs text-muted-foreground">Dalam rentang tanggal terpilih</p>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
@@ -132,10 +106,9 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
                             <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setPage(1); }}>
                                 <SelectTrigger id="limit-select" className="w-[80px]"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="5">5</SelectItem>
                                     <SelectItem value="10">10</SelectItem>
+                                    <SelectItem value="25">25</SelectItem>
                                     <SelectItem value="50">50</SelectItem>
-                                    <SelectItem value="100">100</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -163,14 +136,12 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
                                 {isLoading ? (
                                     Array.from({ length: limit }).map((_, i) => (
                                         <TableRow key={i}>
-                                            <TableCell colSpan={tableColumnCount}>
-                                                <Skeleton className="h-8 w-full" />
-                                            </TableCell>
+                                            <TableCell colSpan={tableColumnCount}><Skeleton className="h-8 w-full" /></TableCell>
                                         </TableRow>
                                     ))
                                 ) : error ? (
                                     <TableRow>
-                                        <TableCell colSpan={tableColumnCount} className="text-center text-red-500">{error.message}</TableCell>
+                                        <TableCell colSpan={tableColumnCount} className="h-24 text-center text-red-500">{error.message}</TableCell>
                                     </TableRow>
                                 ) : attendanceData.length > 0 ? (
                                     attendanceData.map((item) => (
@@ -190,39 +161,33 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={tableColumnCount} className="h-24 text-center">Tidak ada data absensi pada rentang tanggal ini.</TableCell>
+                                        <TableCell colSpan={tableColumnCount} className="h-24 text-center">Tidak ada data untuk ditampilkan.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </div>
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-end space-x-2 py-4">
+                        <CardFooter className="flex items-center justify-end space-x-2 pt-4">
                             <span className="text-sm text-muted-foreground">Halaman {page} dari {totalPages}</span>
                             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="h-4 w-4" /> Sebelumnya</Button>
                             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Berikutnya <ChevronRight className="h-4 w-4" /></Button>
-                        </div>
+                        </CardFooter>
                     )}
                 </CardContent>
             </Card>
 
-            {/* Dialog untuk Photo Viewer */}
             <Dialog open={photoViewerOpen} onOpenChange={setPhotoViewerOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>{selectedPhoto?.title}</DialogTitle>
                         <DialogDescription>{selectedPhoto?.name} - {selectedPhoto?.date && formatDate(selectedPhoto.date)}</DialogDescription>
                     </DialogHeader>
-                    <div className="flex justify-center p-4">
-                        {selectedPhoto && <img src={selectedPhoto.url} alt={selectedPhoto.title} className="max-w-full max-h-[70vh] object-contain rounded-md" />}
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={() => setPhotoViewerOpen(false)}>Tutup</Button>
-                    </DialogFooter>
+                    <div className="flex justify-center p-4"><img src={selectedPhoto?.url} alt={selectedPhoto?.title} className="max-w-full max-h-[70vh] object-contain rounded-md" /></div>
+                    <DialogFooter><Button onClick={() => setPhotoViewerOpen(false)}>Tutup</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog untuk Logbook Viewer */}
             <Dialog open={logbookViewerOpen} onOpenChange={setLogbookViewerOpen}>
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
@@ -252,9 +217,7 @@ export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen m
                             </div>
                         </div>
                     )}
-                    <DialogFooter>
-                        <Button onClick={() => setLogbookViewerOpen(false)}>Tutup</Button>
-                    </DialogFooter>
+                    <DialogFooter><Button onClick={() => setLogbookViewerOpen(false)}>Tutup</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

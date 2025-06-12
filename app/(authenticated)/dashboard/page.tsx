@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import useSWR from 'swr';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +14,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Shift } from "@/lib/types";
 import { DateRange } from "react-day-picker";
 import { addDays, format as formatDateFns } from "date-fns";
+import { id as indonesiaLocale } from "date-fns/locale"; // Impor locale untuk bahasa Indonesia
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Label } from "@/components/ui/label";
+import { useSession } from "../session-provider"; // <-- PERBAIKAN 1: Impor hook useSession
 
 // Tipe data dari API
 type AttendanceRecord = {
@@ -29,7 +30,7 @@ type AttendanceRecord = {
     checkOutStatus: string | null;
     attendanceSheetPhoto: string | null;
     selfiePhoto: string | null;
-    checkOutSelfiePhoto: string | null; // Pastikan tipe ini ada
+    checkOutSelfiePhoto: string | null;
     user: {
         id: string;
         name: string;
@@ -38,31 +39,23 @@ type AttendanceRecord = {
         content: string
     }[];
 };
-type User = {
-    id: string;
-    name: string;
-    role: string;
-};
 
-// Fetcher function untuk SWR dengan credentials
+// Fetcher function untuk SWR, sudah benar
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(res => {
-    if (!res.ok) throw new Error("Gagal memuat data.");
+    if (!res.ok) throw new Error("Gagal memuat data riwayat absensi.");
     return res.json();
 });
 
-export default function Dashboard() {
-    const router = useRouter();
-    const { data: sessionData } = useSWR<{ user: User }>('/api/auth/session', fetcher, {
-        onError: () => router.push('/')
-    });
-    const user = sessionData?.user;
+export default function DashboardPage() { // <-- PERBAIKAN: Ubah nama komponen menjadi lebih deskriptif
+    const session = useSession(); // <-- PERBAIKAN 2: Gunakan hook useSession untuk mendapatkan data user
+    const user = session?.user;
 
     // State untuk filter dan paginasi
     const [date, setDate] = useState<DateRange | undefined>({ from: addDays(new Date(), -30), to: new Date() });
     const [limit, setLimit] = useState<number>(10);
     const [page, setPage] = useState<number>(1);
 
-    // Membuat URL dinamis untuk SWR agar data di-fetch ulang saat filter berubah
+    // Membuat URL SWR yang dinamis
     const fromDate = date?.from ? formatDateFns(date.from, 'yyyy-MM-dd') : '';
     const toDate = date?.to ? formatDateFns(date.to, 'yyyy-MM-dd') : fromDate;
     const swrUrl = fromDate ? `/api/attendance?page=${page}&limit=${limit}&from=${fromDate}&to=${toDate}` : null;
@@ -79,7 +72,7 @@ export default function Dashboard() {
     const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; title: string; date: string; name: string } | null>(null);
     const [selectedLogbook, setSelectedLogbook] = useState<AttendanceRecord | null>(null);
 
-    // Fungsi pembantu
+    // Fungsi pembantu format tanggal dan waktu
     const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const formatTime = (timeString: string | null) => timeString ? new Date(timeString).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
 
@@ -94,20 +87,32 @@ export default function Dashboard() {
         setLogbookViewerOpen(true);
     }
 
-    // PERBAIKAN: Menentukan jumlah kolom dinamis berdasarkan peran pengguna
     const tableColumnCount = user?.role === 'admin' ? 11 : 10;
+    
+    // PERBAIKAN 3: Buat komponen Badge Status yang lebih dinamis
+    const StatusBadge = ({ status }: { status: string | null }) => {
+        if (!status) return <Badge variant="outline">-</Badge>;
+
+        let variant: "default" | "destructive" | "secondary" | "outline" = "outline";
+        if (status === "Tepat Waktu") variant = "default";
+        if (status === "Terlambat") variant = "destructive";
+        if (status === "Lembur") variant = "secondary";
+        if (status === "Belum Absen") variant = "outline";
+
+        return <Badge variant={variant}>{status}</Badge>;
+    };
 
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-                <p className="text-muted-foreground">Selamat datang, {user?.name || "..."}! Berikut adalah riwayat absensi.</p>
+                <p className="text-muted-foreground">Selamat datang, {user?.name || "..."}! Berikut adalah riwayat absensi Anda.</p>
             </div>
             
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Absen</CardTitle>
+                        <CardTitle className="text-sm font-medium">Total Kehadiran</CardTitle>
                         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -123,9 +128,9 @@ export default function Dashboard() {
                     <div className="flex flex-col space-y-2 pt-4 md:flex-row md:items-center md:justify-between md:space-y-0">
                         <DateRangePicker date={date} onDateChange={setDate} />
                         <div className="flex items-center space-x-2">
-                            <Label>Tampilkan:</Label>
+                            <Label htmlFor="limit-select">Tampilkan:</Label>
                             <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setPage(1); }}>
-                                <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
+                                <SelectTrigger id="limit-select" className="w-[80px]"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="5">5</SelectItem>
                                     <SelectItem value="10">10</SelectItem>
@@ -144,7 +149,7 @@ export default function Dashboard() {
                                     <TableHead className="min-w-[180px]">Tanggal</TableHead>
                                     <TableHead>Jam Masuk</TableHead>
                                     <TableHead>Jam Keluar</TableHead>
-                                    {user?.role === "admin" && <TableHead className="min-w-[150px]">Nama</TableHead>}
+                                    {user?.role === "admin" && <TableHead className="min-w-[150px]">Nama Pegawai</TableHead>}
                                     <TableHead>Shift</TableHead>
                                     <TableHead>Status Masuk</TableHead>
                                     <TableHead>Status Keluar</TableHead>
@@ -165,7 +170,7 @@ export default function Dashboard() {
                                     ))
                                 ) : error ? (
                                     <TableRow>
-                                        <TableCell colSpan={tableColumnCount} className="text-center text-red-500">Gagal memuat data.</TableCell>
+                                        <TableCell colSpan={tableColumnCount} className="text-center text-red-500">{error.message}</TableCell>
                                     </TableRow>
                                 ) : attendanceData.length > 0 ? (
                                     attendanceData.map((item) => (
@@ -175,8 +180,8 @@ export default function Dashboard() {
                                             <TableCell>{formatTime(item.checkOutTime)}</TableCell>
                                             {user?.role === "admin" && <TableCell>{item.user.name}</TableCell>}
                                             <TableCell><Badge variant="outline">{item.shift}</Badge></TableCell>
-                                            <TableCell><Badge variant={item.checkInStatus === "Tepat Waktu" ? "default" : "destructive"}>{item.checkInStatus}</Badge></TableCell>
-                                            <TableCell><Badge variant={item.checkOutStatus === "Lembur" ? "secondary" : "default"}>{item.checkOutStatus ?? '-'}</Badge></TableCell>
+                                            <TableCell><StatusBadge status={item.checkInStatus} /></TableCell>
+                                            <TableCell><StatusBadge status={item.checkOutStatus} /></TableCell>
                                             <TableCell><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openPhotoViewer(item.attendanceSheetPhoto, "Foto Lembar Absensi", item.date, item.user.name)} disabled={!item.attendanceSheetPhoto}><Eye className="h-4 w-4" /></Button></TableCell>
                                             <TableCell><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openPhotoViewer(item.selfiePhoto, "Swafoto Masuk", item.date, item.user.name)} disabled={!item.selfiePhoto}><Eye className="h-4 w-4" /></Button></TableCell>
                                             <TableCell><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openPhotoViewer(item.checkOutSelfiePhoto, "Swafoto Absen Keluar", item.date, item.user.name)} disabled={!item.checkOutSelfiePhoto}><Eye className="h-4 w-4" /></Button></TableCell>
@@ -185,20 +190,23 @@ export default function Dashboard() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={tableColumnCount} className="text-center">Tidak ada data absensi pada rentang tanggal ini.</TableCell>
+                                        <TableCell colSpan={tableColumnCount} className="h-24 text-center">Tidak ada data absensi pada rentang tanggal ini.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </div>
-                    <div className="flex items-center justify-end space-x-2 py-4">
-                        <span className="text-sm text-muted-foreground">Halaman {page} dari {totalPages}</span>
-                        <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="h-4 w-4" /> Sebelumnya</Button>
-                        <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Berikutnya <ChevronRight className="h-4 w-4" /></Button>
-                    </div>
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-end space-x-2 py-4">
+                            <span className="text-sm text-muted-foreground">Halaman {page} dari {totalPages}</span>
+                            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="h-4 w-4" /> Sebelumnya</Button>
+                            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Berikutnya <ChevronRight className="h-4 w-4" /></Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
+            {/* Dialog untuk Photo Viewer */}
             <Dialog open={photoViewerOpen} onOpenChange={setPhotoViewerOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
@@ -214,6 +222,7 @@ export default function Dashboard() {
                 </DialogContent>
             </Dialog>
 
+            {/* Dialog untuk Logbook Viewer */}
             <Dialog open={logbookViewerOpen} onOpenChange={setLogbookViewerOpen}>
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>

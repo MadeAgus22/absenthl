@@ -2,9 +2,10 @@
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
+import type { Shift, TimeSettings } from "@/lib/types";
 
 // Asumsi fungsi untuk mendapatkan pengaturan waktu dari DB
-async function getTimeSettings() {
+async function getDbTimeSettings(): Promise<TimeSettings> {
     const settings = await db.timeSettings.findMany();
     const formattedSettings: any = {};
     settings.forEach(s => {
@@ -23,11 +24,17 @@ export async function POST(req: Request) {
             return new NextResponse("User ID and shift are required", { status: 400 });
         }
         
-        const now = new Date();
-        const timeSettings = await getTimeSettings();
+        // --- PERBAIKAN UTAMA DI SINI ---
+        const now = new Date(); // Waktu saat ini dengan jam, menit, detik yang benar
+        
+        // Buat objek baru khusus untuk kolom 'date' tanpa mengubah 'now'
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0); // Atur waktu ke tengah malam untuk tanggal saja
+        
+        const timeSettings = await getDbTimeSettings();
         
         const { checkInStatus } = calculateAttendanceStatus(
-            now.toTimeString().slice(0, 8), 
+            now.toLocaleTimeString('en-GB', { hour12: false }), // Gunakan waktu dari 'now' yang asli
             "00:00:00", // Waktu keluar belum ada
             shift, 
             timeSettings
@@ -37,8 +44,8 @@ export async function POST(req: Request) {
             data: {
                 userId,
                 shift,
-                date: new Date(now.setHours(0, 0, 0, 0)), // Set tanggal ke awal hari
-                checkInTime: now,
+                date: startOfDay, // Gunakan objek tanggal yang sudah direset
+                checkInTime: now, // Gunakan 'now' yang asli dengan waktu yang benar
                 attendanceSheetPhoto,
                 selfiePhoto,
                 checkInStatus,

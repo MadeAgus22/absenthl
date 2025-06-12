@@ -1,14 +1,12 @@
+// app/api/users/[userId]/route.ts
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from 'bcrypt';
 
-// PUT (update) a user
-export async function PUT(req: NextRequest) {
+// PERBAIKAN: Tambahkan parameter kedua { params } untuk menangkap segmen dinamis
+export async function PUT(req: NextRequest, { params }: { params: { userId: string } }) {
     try {
-        // --- PERBAIKAN FINAL: Ambil userId dari URL ---
-        const url = new URL(req.url);
-        const pathSegments = url.pathname.split('/');
-        const userId = pathSegments[pathSegments.length - 1]; // Mengambil segmen terakhir dari path
+        const { userId } = params; // Ambil userId dari params
 
         if (!userId) {
             return NextResponse.json({ message: "User ID tidak ditemukan di URL." }, { status: 400 });
@@ -37,13 +35,10 @@ export async function PUT(req: NextRequest) {
     }
 }
 
-// DELETE a user
-export async function DELETE(req: NextRequest) {
+// PERBAIKAN: Tambahkan parameter kedua { params }
+export async function DELETE(req: NextRequest, { params }: { params: { userId: string } }) {
     try {
-        // --- PERBAIKAN FINAL: Ambil userId dari URL ---
-        const url = new URL(req.url);
-        const pathSegments = url.pathname.split('/');
-        const userId = pathSegments[pathSegments.length - 1];
+        const { userId } = params; // Ambil userId dari params
 
         if (!userId) {
             return NextResponse.json({ message: "User ID tidak ditemukan di URL." }, { status: 400 });

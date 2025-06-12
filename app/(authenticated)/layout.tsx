@@ -4,19 +4,19 @@
 // Mengimpor fungsi useState dan useEffect dari React
 import { useState, useEffect } from "react";
 import type React from "react";
-
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Clock, Settings, LogOut, Menu } from "lucide-react";
+// PERBAIKAN: Impor ikon UserCircle untuk menu Akun
+import { LayoutDashboard, Clock, Settings, LogOut, Menu, UserCircle } from "lucide-react";
 import Link from "next/link";
 import useSWR from 'swr';
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 
 // Fetcher function untuk SWR
 const fetcher = (url: string) => fetch(url).then(res => {
     if (!res.ok) {
       const error = new Error('An error occurred while fetching the data.');
-      // Attach extra info to the error object.
       (error as any).info = res.json();
       (error as any).status = res.status;
       throw error;
@@ -35,13 +35,12 @@ export default function AuthenticatedLayout({
   const pathname = usePathname();
 
   const { data: session, error, isLoading } = useSWR('/api/auth/session', fetcher, {
-    revalidateOnFocus: false, // Opsional: mencegah re-fetch saat window di-fokus
+    revalidateOnFocus: false,
   });
 
   const user = session?.user;
 
   useEffect(() => {
-    // Jika fetch gagal (misal: token tidak valid), arahkan ke login
     if (error) {
         router.push("/");
     }
@@ -50,7 +49,6 @@ export default function AuthenticatedLayout({
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    // Hapus cache SWR dan redirect
     await router.push("/");
   }
 
@@ -60,6 +58,8 @@ export default function AuthenticatedLayout({
       ? [{ name: "Dashboard", href: "/dashboard", icon: LayoutDashboard }]
       : []),
     { name: "Absensi", href: "/attendance", icon: Clock },
+    // PERBAIKAN: Tambahkan item menu Akun di sini untuk semua role
+    { name: "Akun", href: "/account", icon: UserCircle }, 
     ...(user.role === "admin" ? [{ name: "Pengaturan", href: "/settings", icon: Settings }] : []),
   ] : [];
   
@@ -85,6 +85,7 @@ export default function AuthenticatedLayout({
       {/* Mobile menu */}
       <div className="lg:hidden">
         <div className="flex items-center justify-between bg-white dark:bg-neutral-800 p-4 shadow">
+          <Image src="/rsngoerah.png" alt="Logo" width={32} height={32} />
           <h1 className="text-xl font-bold">Sistem Absensi</h1>
           <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
             <Menu />
@@ -126,6 +127,7 @@ export default function AuthenticatedLayout({
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-grow flex-col overflow-y-auto border-r border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 pt-5">
           <div className="flex flex-shrink-0 items-center px-4">
+            <Image src="/rsngoerah.png" alt="Logo" width={32} height={32} />
             <h1 className="text-xl font-bold">Sistem Absensi</h1>
           </div>
           <div className="mt-5 flex flex-grow flex-col">
@@ -135,7 +137,7 @@ export default function AuthenticatedLayout({
                   key={item.name}
                   href={item.href}
                   className={`group flex items-center rounded-md px-2 py-2 text-sm font-medium ${
-                    pathname === item.href ? "bg-gray-100 dark:bg-neutral-700 text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700"
+                    pathname.startsWith(item.href) ? "bg-gray-100 dark:bg-neutral-700 text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700"
                   }`}
                 >
                   <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />

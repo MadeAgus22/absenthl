@@ -1,11 +1,10 @@
-// Pastikan isi file Anda seperti ini
+// app/api/attendance/check-out/route.ts
 
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
 import type { Shift, TimeSettings } from "@/lib/types";
 
-// Fungsi ini bisa Anda kembangkan untuk mengambil dari DB
 async function getDbTimeSettings() {
     const settings = await db.timeSettings.findMany();
     const formattedSettings = settings.reduce((acc, s) => {
@@ -18,10 +17,16 @@ async function getDbTimeSettings() {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, logbookEntries } = body;
+        // Ambil checkOutSelfiePhotoUrl dari body
+        const { userId, logbookEntries, checkOutSelfiePhotoUrl } = body;
 
         if (!userId || !logbookEntries || logbookEntries.length === 0) {
             return NextResponse.json({ message: "User ID dan Logbook wajib diisi." }, { status: 400 });
+        }
+        
+        // Tambahan: Validasi untuk foto absen keluar
+        if (!checkOutSelfiePhotoUrl) {
+             return NextResponse.json({ message: "Swafoto absen keluar wajib diisi." }, { status: 400 });
         }
 
         const lastCheckIn = await db.attendance.findFirst({
@@ -43,6 +48,8 @@ export async function POST(req: NextRequest) {
             data: {
                 checkOutTime: now,
                 checkOutStatus: checkOutStatus,
+                // PERBAIKAN: Simpan URL foto absen keluar ke kolom checkOutSelfiePhoto
+                checkOutSelfiePhoto: checkOutSelfiePhotoUrl,
                 logbook: {
                     create: logbookEntries.map((entry: string) => ({ content: entry })),
                 },

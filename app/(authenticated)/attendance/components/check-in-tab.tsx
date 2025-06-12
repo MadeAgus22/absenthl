@@ -27,7 +27,6 @@ export default function CheckInTab() {
     const [successMessage, setSuccessMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     
-    // State dan Ref untuk kamera
     const [backCameraActive, setBackCameraActive] = useState(false);
     const [frontCameraActive, setFrontCameraActive] = useState(false);
     const [backCameraImage, setBackCameraImage] = useState<string | null>(null);
@@ -55,7 +54,6 @@ export default function CheckInTab() {
     }, []);
 
     useEffect(() => {
-        // Fungsi cleanup: akan berjalan saat komponen di-unmount
         return () => {
             stopAllStreams();
         }

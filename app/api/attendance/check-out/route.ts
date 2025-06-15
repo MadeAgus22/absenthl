@@ -1,10 +1,12 @@
-// app/api/attendance/check-out/route.ts
+// File: app/api/attendance/check-out/route.ts
 
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
 import type { Shift, TimeSettings } from "@/lib/types";
+import { put } from '@vercel/blob';
 
+// Fungsi ini tidak perlu diubah
 async function getDbTimeSettings() {
     const settings = await db.timeSettings.findMany();
     const formattedSettings = settings.reduce((acc, s) => {
@@ -17,27 +19,35 @@ async function getDbTimeSettings() {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        // Ambil checkOutSelfiePhotoUrl dari body
-        const { userId, logbookEntries, checkOutSelfiePhotoUrl } = body;
+        // Terima data gambar mentah (base64) dari frontend
+        const { userId, logbookEntries, checkOutSelfiePhotoData } = body;
 
+        // Validasi input dasar
         if (!userId || !logbookEntries || logbookEntries.length === 0) {
             return NextResponse.json({ message: "User ID dan Logbook wajib diisi." }, { status: 400 });
         }
         
-        // Tambahan: Validasi untuk foto absen keluar
-        if (!checkOutSelfiePhotoUrl) {
+        // Validasi wajib foto
+        if (!checkOutSelfiePhotoData) {
              return NextResponse.json({ message: "Swafoto absen keluar wajib diisi." }, { status: 400 });
         }
 
+        // 1. Validasi Sesi Aktif TERLEBIH DAHULU
         const lastCheckIn = await db.attendance.findFirst({
             where: { userId: userId, checkOutTime: null },
             orderBy: { checkInTime: 'desc' },
         });
 
         if (!lastCheckIn) {
-            return NextResponse.json({ message: "Tidak ditemukan data absen masuk yang aktif." }, { status: 404 });
+            return NextResponse.json({ message: "Tidak ditemukan data absen masuk yang aktif. Silakan lakukan absen masuk terlebih dahulu." }, { status: 404 });
         }
         
+        // 2. Hanya jika validasi lolos, lanjutkan proses upload foto
+        const filename = `checkout-selfie-${userId}-${Date.now()}.jpg`;
+        const buffer = Buffer.from(checkOutSelfiePhotoData.split(',')[1], 'base64');
+        const blob = await put(filename, buffer, { access: 'public', contentType: 'image/jpeg' });
+        
+        // 3. Lanjutkan dengan logika pembuatan data absensi keluar
         const now = new Date();
         const timeSettings = await getDbTimeSettings();
         const shift = lastCheckIn.shift as Shift;
@@ -48,8 +58,7 @@ export async function POST(req: NextRequest) {
             data: {
                 checkOutTime: now,
                 checkOutStatus: checkOutStatus,
-                // PERBAIKAN: Simpan URL foto absen keluar ke kolom checkOutSelfiePhoto
-                checkOutSelfiePhoto: checkOutSelfiePhotoUrl,
+                checkOutSelfiePhoto: blob.url, // Gunakan URL dari blob
                 logbook: {
                     create: logbookEntries.map((entry: string) => ({ content: entry })),
                 },
@@ -57,8 +66,12 @@ export async function POST(req: NextRequest) {
         });
 
         return NextResponse.json(updatedAttendance);
+
     } catch (error) {
         console.error("[CHECK_OUT_ERROR]", error);
-        return new NextResponse("Internal Server Error", { status: 500 });
+        if (error instanceof Error && 'message' in error) {
+            return NextResponse.json({ message: `Internal Server Error: ${error.message}`}, { status: 500 });
+        }
+        return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
     }
 }

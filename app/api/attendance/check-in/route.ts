@@ -1,10 +1,12 @@
-// app/api/attendance/check-in/route.ts
+// File: app/api/attendance/check-in/route.ts
+
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
 import type { Shift, TimeSettings } from "@/lib/types";
+import { put } from '@vercel/blob';
 
-// Asumsi fungsi untuk mendapatkan pengaturan waktu dari DB
+// Fungsi ini tidak perlu diubah
 async function getDbTimeSettings(): Promise<TimeSettings> {
     const settings = await db.timeSettings.findMany();
     const formattedSettings: any = {};
@@ -17,37 +19,74 @@ async function getDbTimeSettings(): Promise<TimeSettings> {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { userId, shift, attendanceSheetPhoto, selfiePhoto } = body;
+        // Terima data gambar mentah (base64) dari frontend
+        const { userId, shift, attendanceSheetPhotoData, selfiePhotoData } = body;
 
-        // Validasi input
+        // Validasi input dasar
         if (!userId || !shift) {
-            return new NextResponse("User ID and shift are required", { status: 400 });
+            return NextResponse.json({ message: "User ID dan shift wajib diisi" }, { status: 400 });
         }
         
-        // --- PERBAIKAN UTAMA DI SINI ---
-        const now = new Date(); // Waktu saat ini dengan jam, menit, detik yang benar
+        // 1. Validasi Sesi Aktif TERLEBIH DAHULU
+        const activeCheckIn = await db.attendance.findFirst({
+            where: { userId: userId, checkOutTime: null }
+        });
+
+        if (activeCheckIn) {
+            return NextResponse.json(
+                { message: "Tidak dapat absen masuk karena Anda sudah memiliki sesi absensi yang aktif." },
+                { status: 409 } // 409 Conflict
+            );
+        }
+
+        // 2. Hanya jika validasi lolos, lanjutkan proses upload
+        let attendanceSheetUrl: string | null = null;
+        if (attendanceSheetPhotoData) {
+            const filename = `attendance-${userId}-${Date.now()}.jpg`;
+            // Konversi data base64 menjadi Buffer yang bisa diupload
+            const buffer = Buffer.from(attendanceSheetPhotoData.split(',')[1], 'base64');
+            const blob = await put(filename, buffer, { access: 'public', contentType: 'image/jpeg' });
+            attendanceSheetUrl = blob.url;
+        }
+
+        let selfieUrl: string | null = null;
+        if (selfiePhotoData) {
+            const filename = `selfie-${userId}-${Date.now()}.jpg`;
+            const buffer = Buffer.from(selfiePhotoData.split(',')[1], 'base64');
+            const blob = await put(filename, buffer, { access: 'public', contentType: 'image/jpeg' });
+            selfieUrl = blob.url;
+        }
         
-        // Buat objek baru khusus untuk kolom 'date' tanpa mengubah 'now'
-        const startOfDay = new Date(now);
-        startOfDay.setHours(0, 0, 0, 0); // Atur waktu ke tengah malam untuk tanggal saja
+        // 3. Lanjutkan dengan logika pembuatan data absensi
+        const now = new Date(); // Waktu aktual dari server (sudah diset WITA)
+        
+        let dateForDb = new Date(now);
+        
+        // Penanganan khusus untuk shift malam yang melewati tengah malam
+        if (shift === "Malam" && now.getHours() < 5) {
+            dateForDb.setDate(dateForDb.getDate() - 1);
+        }
+        
+        // Atur waktu ke tengah malam (00:00:00) untuk kolom 'date'
+        dateForDb.setHours(0, 0, 0, 0);
         
         const timeSettings = await getDbTimeSettings();
-        
         const { checkInStatus } = calculateAttendanceStatus(
-            now.toLocaleTimeString('en-GB', { hour12: false }), // Gunakan waktu dari 'now' yang asli
-            "00:00:00", // Waktu keluar belum ada
+            now.toLocaleTimeString('en-GB', { hour12: false }), // Gunakan waktu aktual untuk kalkulasi status
+            "00:00:00",
             shift, 
             timeSettings
         );
 
+        // 4. Buat record di database dengan URL foto yang sudah diupload
         const attendance = await db.attendance.create({
             data: {
                 userId,
                 shift,
-                date: startOfDay, // Gunakan objek tanggal yang sudah direset
-                checkInTime: now, // Gunakan 'now' yang asli dengan waktu yang benar
-                attendanceSheetPhoto,
-                selfiePhoto,
+                date: dateForDb,               // Tanggal yang sudah dinormalisasi
+                checkInTime: now,              // Waktu aktual saat absen
+                attendanceSheetPhoto: attendanceSheetUrl, // URL dari hasil upload
+                selfiePhoto: selfieUrl,                   // URL dari hasil upload
                 checkInStatus,
                 checkOutStatus: "Belum Absen",
             },
@@ -57,6 +96,10 @@ export async function POST(req: Request) {
 
     } catch (error) {
         console.error("[CHECK_IN_ERROR]", error);
-        return new NextResponse("Internal Server Error", { status: 500 });
+        // Memberikan pesan error yang lebih spesifik jika memungkinkan
+        if (error instanceof Error && 'message' in error) {
+             return NextResponse.json({ message: `Internal Server Error: ${error.message}`}, { status: 500 });
+        }
+        return NextResponse.json({ message: "Internal Server Error"}, { status: 500 });
     }
 }

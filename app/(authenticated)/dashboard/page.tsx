@@ -54,8 +54,26 @@ export default function DashboardPage() {
     const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; title: string; date: string; name: string } | null>(null);
     const [selectedLogbook, setSelectedLogbook] = useState<AttendanceRecord | null>(null);
 
-    const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    const formatTime = (timeString: string | null) => timeString ? new Date(timeString).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
+     const formatDate = (dateString: string) => {
+        // Karena `date` tidak memiliki komponen waktu, `new Date` aman digunakan di sini.
+        // Namun untuk konsistensi, kita bisa parse secara manual agar lebih aman.
+        const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
+        // Bulan di JavaScript dimulai dari 0 (Januari=0), jadi kita kurangi 1.
+        const dateObj = new Date(year, month - 1, day);
+        return dateObj.toLocaleDateString("id-ID", { 
+            weekday: "long", 
+            year: "numeric", 
+            month: "long", 
+            day: "numeric" 
+        });
+    };
+
+    const formatTime = (timeString: string | null) => {
+        if (!timeString) return "-";
+        // Cukup ambil bagian jam dan menit dari string (posisi 11 sampai 16)
+        // Contoh: '2025-06-15T23:45:37.842' akan menjadi '23:45'
+        return timeString.substring(11, 16).replace(':', '.');
+    };
 
     const openPhotoViewer = (photoUrl: string | null, title: string, date: string, name: string) => {
         if (!photoUrl) return;
@@ -75,7 +93,7 @@ export default function DashboardPage() {
         let variant: "default" | "destructive" | "secondary" | "outline" = "outline";
         if (status === "Tepat Waktu") variant = "default";
         if (status === "Terlambat") variant = "destructive";
-        if (status === "Lembur") variant = "secondary";
+        if (status === "Sudah Absen") variant = "secondary";
         return <Badge variant={variant}>{status}</Badge>;
     };
 

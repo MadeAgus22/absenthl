@@ -53,12 +53,14 @@ export async function POST(req: NextRequest) {
         const shift = lastCheckIn.shift as Shift;
         const { checkOutStatus } = calculateAttendanceStatus(lastCheckIn.checkInTime.toLocaleTimeString('en-GB'), now.toLocaleTimeString('en-GB'), shift, timeSettings);
 
+         const checkOutTimeForDb = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Makassar' }));
+
         const updatedAttendance = await db.attendance.update({
             where: { id: lastCheckIn.id },
             data: {
-                checkOutTime: now,
+                checkOutTime: checkOutTimeForDb, // Kirim sebagai objek Date yang sudah disesuaikan
                 checkOutStatus: checkOutStatus,
-                checkOutSelfiePhoto: blob.url, // Gunakan URL dari blob
+                checkOutSelfiePhoto: blob.url,
                 logbook: {
                     create: logbookEntries.map((entry: string) => ({ content: entry })),
                 },

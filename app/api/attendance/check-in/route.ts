@@ -56,14 +56,11 @@ export async function POST(req: Request) {
         const now = new Date(); // Waktu aktual server (WITA)
         
         // Menggunakan fungsi helper untuk menentukan tanggal absensi yang benar
-        const attendanceDate = normalizeDateForShift(now, shift);
+        const attendanceDate = now;
         
         const timeSettings = await getDbTimeSettings();
         const { checkInStatus } = calculateAttendanceStatus(
-            now.toLocaleTimeString('en-GB'),
-            "00:00:00",
-            shift, 
-            timeSettings
+            now.toLocaleTimeString('en-GB'), "00:00:00", shift, timeSettings
         );
 
         // 4. Buat record di database

@@ -26,8 +26,8 @@ model Attendance {
   id                    String    @id @default(cuid())
   date                  DateTime @db.Date
   shift                 String // "Reguler", "Pagi", "Siang", "Malam"
-  checkInTime           DateTime @db.Timestamp(3)
-  checkOutTime          DateTime? @db.Timestamp(3)
+  checkInTime          DateTime  @db.Timestamptz(3)
+  checkOutTime         DateTime? @db.Timestamptz(3)
   attendanceSheetPhoto  String?   // URL dari Vercel Blob
   selfiePhoto           String?   // URL dari Vercel Blob
   checkInStatus         String

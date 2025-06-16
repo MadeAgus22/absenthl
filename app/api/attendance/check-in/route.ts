@@ -1,92 +1,80 @@
-// File: app/api/attendance/check-in/route.ts
-
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
 import type { Shift, TimeSettings } from "@/lib/types";
 import { put } from '@vercel/blob';
+import { getDbTimeSettings, normalizeDateForShift } from "./utils"; // PERBAIKAN: Impor fungsi helper
 
-// Fungsi ini tidak perlu diubah
-async function getDbTimeSettings(): Promise<TimeSettings> {
-    const settings = await db.timeSettings.findMany();
-    const formattedSettings: any = {};
-    settings.forEach(s => {
-        formattedSettings[s.shiftName] = s;
+// Fungsi untuk upload gambar, dibuat terpisah agar lebih rapi
+async function uploadImage(base64Data: string, prefix: string, userId: string): Promise<string> {
+    const filename = `${prefix}-${userId}-${Date.now()}.jpeg`;
+    // Konversi base64 ke Buffer
+    const buffer = Buffer.from(base64Data.split(',')[1], 'base64');
+    
+    const blob = await put(filename, buffer, {
+        access: 'public',
+        contentType: 'image/jpeg',
     });
-    return formattedSettings;
+    
+    return blob.url;
 }
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        // Terima data gambar mentah (base64) dari frontend
         const { userId, shift, attendanceSheetPhotoData, selfiePhotoData } = body;
 
-        // Validasi input dasar
+        // Validasi input
         if (!userId || !shift) {
-            return NextResponse.json({ message: "User ID dan shift wajib diisi" }, { status: 400 });
+            return NextResponse.json({ message: "User ID dan shift wajib diisi." }, { status: 400 });
         }
-        
-        // 1. Validasi Sesi Aktif TERLEBIH DAHULU
+
+        // 1. Validasi Sesi Aktif
         const activeCheckIn = await db.attendance.findFirst({
             where: { userId: userId, checkOutTime: null }
         });
 
         if (activeCheckIn) {
             return NextResponse.json(
-                { message: "Tidak dapat absen masuk karena Anda sudah memiliki sesi absensi yang aktif." },
+                { message: "Anda sudah memiliki sesi absensi yang aktif dan belum melakukan check-out." },
                 { status: 409 } // 409 Conflict
             );
         }
 
-        // 2. Hanya jika validasi lolos, lanjutkan proses upload
+        // 2. Upload gambar (jika ada)
         let attendanceSheetUrl: string | null = null;
         if (attendanceSheetPhotoData) {
-            const filename = `attendance-${userId}-${Date.now()}.jpg`;
-            // Konversi data base64 menjadi Buffer yang bisa diupload
-            const buffer = Buffer.from(attendanceSheetPhotoData.split(',')[1], 'base64');
-            const blob = await put(filename, buffer, { access: 'public', contentType: 'image/jpeg' });
-            attendanceSheetUrl = blob.url;
+            attendanceSheetUrl = await uploadImage(attendanceSheetPhotoData, 'attendance', userId);
         }
 
         let selfieUrl: string | null = null;
         if (selfiePhotoData) {
-            const filename = `selfie-${userId}-${Date.now()}.jpg`;
-            const buffer = Buffer.from(selfiePhotoData.split(',')[1], 'base64');
-            const blob = await put(filename, buffer, { access: 'public', contentType: 'image/jpeg' });
-            selfieUrl = blob.url;
+            selfieUrl = await uploadImage(selfiePhotoData, 'selfie', userId);
         }
         
-        // 3. Lanjutkan dengan logika pembuatan data absensi
-        const now = new Date(); // Waktu aktual dari server (sudah diset WITA)
+        // 3. Logika Tanggal dan Status
+        const now = new Date(); // Waktu aktual server (WITA)
         
-        let dateForDb = new Date(now);
-        
-        // Penanganan khusus untuk shift malam yang melewati tengah malam
-        if (shift === "Malam" && now.getHours() < 5) {
-            dateForDb.setDate(dateForDb.getDate() - 1);
-        }
-        
-        // Atur waktu ke tengah malam (00:00:00) untuk kolom 'date'
-        dateForDb.setHours(0, 0, 0, 0);
+        // Menggunakan fungsi helper untuk menentukan tanggal absensi yang benar
+        const attendanceDate = normalizeDateForShift(now, shift);
         
         const timeSettings = await getDbTimeSettings();
         const { checkInStatus } = calculateAttendanceStatus(
-            now.toLocaleTimeString('en-GB', { hour12: false }), // Gunakan waktu aktual untuk kalkulasi status
+            now.toLocaleTimeString('en-GB'),
             "00:00:00",
             shift, 
             timeSettings
         );
 
-        // 4. Buat record di database dengan URL foto yang sudah diupload
+        // 4. Buat record di database
         const attendance = await db.attendance.create({
             data: {
                 userId,
                 shift,
-                date: dateForDb,               // Tanggal yang sudah dinormalisasi
-                checkInTime: now,              // Waktu aktual saat absen
-                attendanceSheetPhoto: attendanceSheetUrl, // URL dari hasil upload
-                selfiePhoto: selfieUrl,                   // URL dari hasil upload
+                date: attendanceDate,
+                checkInTime: now,
+                attendanceSheetPhoto: attendanceSheetUrl,
+                selfiePhoto: selfieUrl,
                 checkInStatus,
                 checkOutStatus: "Belum Absen",
             },
@@ -96,10 +84,10 @@ export async function POST(req: Request) {
 
     } catch (error) {
         console.error("[CHECK_IN_ERROR]", error);
-        // Memberikan pesan error yang lebih spesifik jika memungkinkan
-        if (error instanceof Error && 'message' in error) {
-             return NextResponse.json({ message: `Internal Server Error: ${error.message}`}, { status: 500 });
+        // Memberikan pesan error yang lebih spesifik jika terjadi kesalahan
+        if (error instanceof Error) {
+             return NextResponse.json({ message: `Terjadi kesalahan internal: ${error.message}` }, { status: 500 });
         }
-        return NextResponse.json({ message: "Internal Server Error"}, { status: 500 });
+        return NextResponse.json({ message: "Terjadi kesalahan internal." }, { status: 500 });
     }
 }

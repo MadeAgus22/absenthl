@@ -69,11 +69,18 @@ export default function DashboardPage() {
     };
 
     const formatTime = (timeString: string | null) => {
-        if (!timeString) return "-";
-        // Cukup ambil bagian jam dan menit dari string (posisi 11 sampai 16)
-        // Contoh: '2025-06-15T23:45:37.842' akan menjadi '23:45'
-        return timeString.substring(11, 16).replace(':', '.');
-    };
+    if (!timeString) return "-";
+
+    // Buat objek Date dari string ISO (UTC) yang datang dari database
+    const dateUTC = new Date(timeString);
+
+    // Gunakan toLocaleTimeString dengan opsi timeZone yang eksplisit
+    return dateUTC.toLocaleTimeString("id-ID", {
+        timeZone: "Asia/Makassar", // WITA
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
 
     const openPhotoViewer = (photoUrl: string | null, title: string, date: string, name: string) => {
         if (!photoUrl) return;

@@ -1,8 +1,8 @@
 import type { Shift, TimeSettings } from "@/lib/types";
 
 export function calculateAttendanceStatus(
-  checkInTime: string,
-  checkOutTime: string,
+  checkInTime: string, // Waktu check-in dalam format 'HH:mm:ss'
+  checkOutTime: string, // Waktu check-out dalam format 'HH:mm:ss'
   shift: Shift,
   timeSettings: TimeSettings,
 ) {
@@ -11,33 +11,28 @@ export function calculateAttendanceStatus(
     return { checkInStatus: "Shift Tidak Valid", checkOutStatus: "Shift Tidak Valid" };
   }
 
-  const checkIn = new Date(`2000-01-01T${checkInTime}`);
-  const checkOut = new Date(`2000-01-01T${checkOutTime}`);
-  const checkInEndLimit = new Date(`2000-01-01T${shiftSettings.checkInEnd}`);
-  const overtimeThreshold = new Date(`2000-01-01T${shiftSettings.overtimeThreshold}`);
+  // Buat tanggal referensi hari ini untuk perbandingan jam saja
+  const today = new Date().toISOString().slice(0, 10);
 
-  if (shift === "Malam") {
-    const checkOutNextDay = new Date(checkOut.getTime() + 24 * 60 * 60 * 1000);
-    const overtimeThresholdNextDay = new Date(overtimeThreshold.getTime() + 24 * 60 * 60 * 1000);
-    return {
-      checkInStatus: checkIn <= checkInEndLimit ? "Tepat Waktu" : "Terlambat",
-      checkOutStatus: checkOutTime === "00:00:00" ? "Belum Absen" : (checkOutNextDay > overtimeThresholdNextDay ? "Lembur" : "Tepat Waktu"),
-    };
+  // Buat objek Date dari string waktu check-in dan batas waktu
+  const checkInDateTime = new Date(`<span class="math-inline">\{today\}T</span>{checkInTime}`);
+  const checkInEndLimit = new Date(`<span class="math-inline">\{today\}T</span>{shiftSettings.checkInEnd}`);
+  const checkOutDateTime = new Date(`<span class="math-inline">\{today\}T</span>{checkOutTime}`);
+  const overtimeThreshold = new Date(`<span class="math-inline">\{today\}T</span>{shiftSettings.overtimeThreshold}`);
+
+  let checkInStatus = "Terlambat";
+  if (checkInDateTime <= checkInEndLimit) {
+    checkInStatus = "Tepat Waktu";
   }
 
-  return {
-    checkInStatus: checkIn <= checkInEndLimit ? "Tepat Waktu" : "Terlambat",
-    checkOutStatus: checkOutTime === "00:00:00" ? "Belum Absen" : (checkOut > overtimeThreshold ? "Lembur" : "Tepat Waktu"),
-  };
-}
+  let checkOutStatus = "Belum Absen";
+  if (checkOutTime !== "00:00:00") {
+    if (shift === "Malam" && checkOutDateTime < checkInDateTime) {
+      // Handle checkout keesokan harinya untuk shift malam
+      checkOutDateTime.setDate(checkOutDateTime.getDate() + 1);
+    }
+    checkOutStatus = checkOutDateTime > overtimeThreshold ? "Lembur" : "Tepat Waktu";
+  }
 
-// Fungsi ini bisa tetap ada jika masih digunakan di frontend
-export function getTimeRangeDisplay(shift: Shift, timeSettings: TimeSettings) {
-  const settings = timeSettings[shift];
-  return {
-    checkInRange: `${settings.checkInStart} - ${settings.checkInEnd}`,
-    lateAfter: settings.checkInEnd,
-    normalCheckOut: `${settings.checkOutStart} - ${settings.checkOutEnd}`,
-    overtimeAfter: settings.overtimeThreshold,
-  };
+  return { checkInStatus, checkOutStatus };
 }

@@ -24,7 +24,7 @@ model User {
 
 model Attendance {
   id                    String    @id @default(cuid())
-  date                  DateTime @db.Timestamp(3)
+  date                  DateTime @db.Date
   shift                 String // "Reguler", "Pagi", "Siang", "Malam"
   checkInTime           DateTime @db.Timestamp(3)
   checkOutTime          DateTime? @db.Timestamp(3)

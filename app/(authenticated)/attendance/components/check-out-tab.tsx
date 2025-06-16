@@ -105,7 +105,7 @@ export default function CheckOutTab({ disabled, activeCheckInData }: { disabled:
     const handleLogbookChange = (index: number, value: string) => { const newEntries = [...logbookEntries]; newEntries[index] = value; setLogbookEntries(newEntries); };
     const addLogbookEntry = () => { setLogbookEntries([...logbookEntries, ""]); };
     const removeLogbookEntry = (index: number) => {
-        if (logbookEntries.length <= 1) { setErrorMessage("Minimal harus ada 1 entri logbook."); setTimeout(() => setErrorMessage(""), 3000); return; }
+        if (logbookEntries.length <= 3) { setErrorMessage("Minimal harus ada 3 entri logbook."); setTimeout(() => setErrorMessage(""), 3000); return; }
         setLogbookEntries(logbookEntries.filter((_, i) => i !== index));
     };
 
@@ -175,6 +175,8 @@ export default function CheckOutTab({ disabled, activeCheckInData }: { disabled:
             <CardHeader>
                 <CardTitle>Absen Keluar</CardTitle>
                 <CardDescription>Isi logbook dan ambil swafoto untuk absen keluar.</CardDescription>
+                <CardDescription>Format Logbook: Yang Dibantu_Aktifitas_Keterangan</CardDescription>
+                <CardDescription>Contoh: Perawat_Membantu menyelesaikan ..._Status Selesai/RMpasien</CardDescription>
                 {/* Tampilkan info sesi aktif */}
                 {activeCheckInData && (
                     <div className="pt-2">

@@ -26,11 +26,14 @@ export async function POST(req: NextRequest) {
         const { userId, logbookEntries, checkOutSelfiePhotoData } = body;
 
         // Validasi input
-        if (!userId || !logbookEntries || logbookEntries.length === 0) {
+        if (!userId || !logbookEntries ) {
             return NextResponse.json({ message: "User ID dan Logbook wajib diisi." }, { status: 400 });
         }
+        if (!Array.isArray(logbookEntries) || logbookEntries.length !== 3) {
+            return NextResponse.json({ message: "Minimal 3 logbook y gais." }, { status: 400 });
+        }
         if (!checkOutSelfiePhotoData) {
-            return NextResponse.json({ message: "Swafoto absen keluar wajib diisi." }, { status: 400 });
+            return NextResponse.json({ message: "Swafoto/selfie absen keluar wajib diisi." }, { status: 400 });
         }
 
         // 1. Cari data absen masuk yang aktif

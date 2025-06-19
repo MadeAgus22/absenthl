@@ -57,7 +57,7 @@ export async function POST(req: Request) {
         if (selfiePhotoData) {
             selfieUrl = await uploadImage(selfiePhotoData, 'selfie', userId);
         }
-
+        
         const attendanceDate = normalizeDateForShift(nowWita, shift as Shift);
         console.log(`[DEBUG] Tanggal yang akan disimpan (attendanceDate): ${attendanceDate.toISOString()}`);
 

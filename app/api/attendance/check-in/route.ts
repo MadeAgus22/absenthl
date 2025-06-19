@@ -1,90 +1,50 @@
-// File: app/api/attendance/check-in/route.ts
+// File: app/api/attendance/check-in/route.ts (Versi Debugging)
 
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { calculateAttendanceStatus } from "@/lib/attendance-utils";
-import type { Shift, TimeSettings } from "@/lib/types";
-import { put } from '@vercel/blob';
-import { getDbTimeSettings, normalizeDateForShift } from "./utils";
-// ================== FIX: UBAH NAMA FUNGSI DI IMPOR ==================
 import { toZonedTime } from 'date-fns-tz';
-// ==================================================================
-
-async function uploadImage(base64Data: string, prefix: string, userId: string): Promise<string> {
-    const filename = `${prefix}-${userId}-${Date.now()}.jpeg`;
-    const buffer = Buffer.from(base64Data.split(',')[1], 'base64');
-    const blob = await put(filename, buffer, {
-        access: 'public',
-        contentType: 'image/jpeg',
-    });
-    return blob.url;
-}
 
 export async function POST(req: Request) {
     try {
+        // --- LOG PEMBUKTIAN 1 ---
+        console.log("=================================================");
+        console.log("API CHECK-IN DENGAN KODE DEBUGGING DIPANGGIL");
+        console.log(`Waktu Panggilan (UTC): ${new Date().toISOString()}`);
+        console.log("=================================================");
+
         const body = await req.json();
-        const { userId, shift, attendanceSheetPhotoData, selfiePhotoData } = body;
-
-        if (!userId || !shift) {
-            return NextResponse.json({ message: "User ID dan shift wajib diisi." }, { status: 400 });
-        }
-
-        const activeCheckIn = await db.attendance.findFirst({
-            where: { userId: userId, checkOutTime: null }
-        });
-        if (activeCheckIn) {
-            return NextResponse.json(
-                { message: "Anda sudah memiliki sesi absensi yang aktif dan belum melakukan check-out." },
-                { status: 409 }
-            );
-        }
+        const { userId, shift } = body;
 
         const nowUtc = new Date();
         const timeZone = 'Asia/Makassar';
-
-        // ================== FIX: UBAH NAMA FUNGSI YANG DIPANGGIL ==================
         const nowWita = toZonedTime(nowUtc, timeZone);
-        // ========================================================================
 
-        let attendanceSheetUrl: string | null = null;
-        if (attendanceSheetPhotoData) {
-            attendanceSheetUrl = await uploadImage(attendanceSheetPhotoData, 'attendance', userId);
-        }
-        let selfieUrl: string | null = null;
-        if (selfiePhotoData) {
-            selfieUrl = await uploadImage(selfiePhotoData, 'selfie', userId);
-        }
-        
-        const attendanceDate = normalizeDateForShift(nowWita, shift as Shift);
-        
-        const timeSettings = await getDbTimeSettings();
-        const { checkInStatus } = calculateAttendanceStatus(
-            nowWita.toLocaleTimeString('en-GB'),
-            "00:00:00", 
-            shift, 
-            timeSettings
-        );
+        // --- LOG PEMBUKTIAN 2 ---
+        console.log(`[DEBUG] Nilai nowUtc: ${nowUtc.toISOString()}`);
+        console.log(`[DEBUG] Nilai nowWita setelah konversi: ${nowWita.toString()}`);
+        console.log(`[DEBUG] Hari dari nowWita.getDate(): ${nowWita.getDate()}`);
+
+        // --- TES HARDCODE ---
+        // Kita akan paksa tanggal menjadi 1 Jan 2099 untuk melihat apakah perubahan ini masuk.
+        const testDate = new Date('2099-01-01T00:00:00Z');
+        console.log(`[DEBUG] Tanggal yang akan disimpan (paksa): ${testDate.toISOString()}`);
 
         const attendance = await db.attendance.create({
             data: {
                 userId,
                 shift,
-                date: attendanceDate,
+                date: testDate, // Menggunakan tanggal yang dipaksa
                 checkInTime: nowUtc,
-                attendanceSheetPhoto: attendanceSheetUrl,
-                selfiePhoto: selfieUrl,
-                checkInStatus,
-                checkOutStatus: "Belum Absen",
+                checkInStatus: "Debugging",
+                checkOutStatus: "Debugging",
             },
         });
 
-        return NextResponse.json(attendance);
+        console.log("[DEBUG] Data berhasil disimpan ke DB:", attendance);
+        return NextResponse.json({ message: "Debugging success", data: attendance });
 
     } catch (error) {
-        console.error("[CHECK_IN_ERROR]", error);
-        if (error instanceof Error) {
-             return NextResponse.json({ message: `Terjadi kesalahan internal: ${error.message}` }, { status: 500 });
-        }
-        return NextResponse.json({ message: "Terjadi kesalahan internal." }, { status: 500 });
+        console.error("[CHECK_IN_ERROR_DEBUG]", error);
+        return new NextResponse("Internal Server Error", { status: 500 });
     }
 }

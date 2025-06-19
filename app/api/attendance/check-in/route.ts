@@ -1,12 +1,13 @@
 // File: app/api/attendance/check-in/route.ts
+
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
 import type { Shift, TimeSettings } from "@/lib/types";
 import { put } from '@vercel/blob';
 import { getDbTimeSettings, normalizeDateForShift } from "./utils";
+import { utcToZonedTime } from 'date-fns-tz';
 
-// Fungsi uploadImage tetap sama
 async function uploadImage(base64Data: string, prefix: string, userId: string): Promise<string> {
     const filename = `${prefix}-${userId}-${Date.now()}.jpeg`;
     const buffer = Buffer.from(base64Data.split(',')[1], 'base64');
@@ -22,12 +23,10 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { userId, shift, attendanceSheetPhotoData, selfiePhotoData } = body;
 
-        // Validasi input (tetap sama)
         if (!userId || !shift) {
             return NextResponse.json({ message: "User ID dan shift wajib diisi." }, { status: 400 });
         }
 
-        // Validasi Sesi Aktif (tetap sama)
         const activeCheckIn = await db.attendance.findFirst({
             where: { userId: userId, checkOutTime: null }
         });
@@ -38,16 +37,15 @@ export async function POST(req: Request) {
             );
         }
 
-        // ================== PERUBAHAN UTAMA DIMULAI DI SINI ==================
-
-        // 1. Dapatkan waktu UTC saat ini dari server. Ini adalah timestamp yang akurat.
+        // ================== SOLUSI PALING ANDAL MENGGUNAKAN date-fns-tz ==================
         const nowUtc = new Date();
+        const timeZone = 'Asia/Makassar';
 
-        // 2. Buat objek Date baru yang komponen tanggal dan waktunya sesuai dengan zona waktu WITA.
-        //    Ini adalah trik untuk mendapatkan "tampilan" waktu WITA tanpa mengubah timezone server.
-        const nowWita = new Date(nowUtc.toLocaleString('en-US', { timeZone: 'Asia/Makassar' }));
+        // Konversi waktu UTC ke zona waktu WITA secara andal
+        const nowWita = utcToZonedTime(nowUtc, timeZone);
+        // `nowWita` adalah objek Date yang komponennya (hari, jam) sudah 100% benar sesuai WITA.
+        // =================================================================================
 
-        // Upload gambar (tetap sama)
         let attendanceSheetUrl: string | null = null;
         if (attendanceSheetPhotoData) {
             attendanceSheetUrl = await uploadImage(attendanceSheetPhotoData, 'attendance', userId);
@@ -57,35 +55,29 @@ export async function POST(req: Request) {
             selfieUrl = await uploadImage(selfiePhotoData, 'selfie', userId);
         }
         
-        // 3. Logika Tanggal dan Status menggunakan `nowWita`
-        // `normalizeDateForShift` sekarang akan bekerja dengan benar karena menerima Date dengan komponen hari yang sesuai WITA.
         const attendanceDate = normalizeDateForShift(nowWita, shift as Shift);
         
         const timeSettings = await getDbTimeSettings();
-        
-        // Gunakan `nowWita` juga untuk kalkulasi status agar konsisten.
         const { checkInStatus } = calculateAttendanceStatus(
-            nowWita.toLocaleTimeString('en-GB'), // Ambil string waktu dari `nowWita`
+            // Gunakan `toLocaleTimeString` dari `nowWita` yang sudah dikonversi
+            nowWita.toLocaleTimeString('en-GB'),
             "00:00:00", 
             shift, 
             timeSettings
         );
 
-        // 4. Buat record di database
         const attendance = await db.attendance.create({
             data: {
                 userId,
                 shift,
-                date: attendanceDate,         // <-- ✅ Ini sekarang tanggal WITA yang benar
-                checkInTime: nowUtc,          // <-- ✅ Ini tetap timestamp UTC yang presisi
+                date: attendanceDate,
+                checkInTime: nowUtc,
                 attendanceSheetPhoto: attendanceSheetUrl,
                 selfiePhoto: selfieUrl,
                 checkInStatus,
                 checkOutStatus: "Belum Absen",
             },
         });
-
-        // ================== AKHIR PERUBAHAN UTAMA ==================
 
         return NextResponse.json(attendance);
 

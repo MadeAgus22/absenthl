@@ -1,4 +1,4 @@
-// File: app/api/attendance/check-in/route.ts (Versi Final - Mode Debugging)
+// File: app/api/attendance/check-in/route.ts (Versi Final Produksi)
 
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -20,11 +20,6 @@ async function uploadImage(base64Data: string, prefix: string, userId: string): 
 
 export async function POST(req: Request) {
     try {
-        console.log("\n==============================================");
-        console.log("API CHECK-IN (VERSI FINAL - DEBUG) DIPANGGIL");
-        console.log(`Waktu Panggilan (UTC): ${new Date().toISOString()}`);
-        console.log("==============================================");
-
         const body = await req.json();
         const { userId, shift, attendanceSheetPhotoData, selfiePhotoData } = body;
 
@@ -45,9 +40,6 @@ export async function POST(req: Request) {
         const nowUtc = new Date();
         const timeZone = 'Asia/Makassar';
         const nowWita = toZonedTime(nowUtc, timeZone);
-        
-        console.log(`[DEBUG] Waktu UTC Server (nowUtc): ${nowUtc.toISOString()}`);
-        console.log(`[DEBUG] Waktu Konversi (nowWita): ${nowWita.toString()}`);
 
         let attendanceSheetUrl: string | null = null;
         if (attendanceSheetPhotoData) {
@@ -59,8 +51,7 @@ export async function POST(req: Request) {
         }
         
         const attendanceDate = normalizeDateForShift(nowWita, shift as Shift);
-        console.log(`[DEBUG] Tanggal yang akan disimpan (attendanceDate): ${attendanceDate.toISOString()}`);
-
+        
         const timeSettings = await getDbTimeSettings();
         const { checkInStatus } = calculateAttendanceStatus(
             nowWita.toLocaleTimeString('en-GB'),
@@ -68,7 +59,6 @@ export async function POST(req: Request) {
             shift, 
             timeSettings
         );
-        console.log(`[DEBUG] Status Kehadiran Dihitung: ${checkInStatus}`);
 
         const attendance = await db.attendance.create({
             data: {
@@ -83,11 +73,10 @@ export async function POST(req: Request) {
             },
         });
 
-        console.log("[DEBUG] Data yang berhasil disimpan ke DB:", attendance);
         return NextResponse.json(attendance);
 
     } catch (error) {
-        console.error("[CHECK_IN_ERROR_DEBUG_FINAL]", error);
+        console.error("[CHECK_IN_ERROR]", error);
         if (error instanceof Error) {
              return NextResponse.json({ message: `Terjadi kesalahan internal: ${error.message}` }, { status: 500 });
         }

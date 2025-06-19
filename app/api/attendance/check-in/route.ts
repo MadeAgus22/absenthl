@@ -6,7 +6,9 @@ import { calculateAttendanceStatus } from "@/lib/attendance-utils";
 import type { Shift, TimeSettings } from "@/lib/types";
 import { put } from '@vercel/blob';
 import { getDbTimeSettings, normalizeDateForShift } from "./utils";
-import { utcToZonedTime } from 'date-fns-tz';
+// ================== FIX: UBAH NAMA FUNGSI DI IMPOR ==================
+import { toZonedTime } from 'date-fns-tz';
+// ==================================================================
 
 async function uploadImage(base64Data: string, prefix: string, userId: string): Promise<string> {
     const filename = `${prefix}-${userId}-${Date.now()}.jpeg`;
@@ -37,14 +39,12 @@ export async function POST(req: Request) {
             );
         }
 
-        // ================== SOLUSI PALING ANDAL MENGGUNAKAN date-fns-tz ==================
         const nowUtc = new Date();
         const timeZone = 'Asia/Makassar';
 
-        // Konversi waktu UTC ke zona waktu WITA secara andal
-        const nowWita = utcToZonedTime(nowUtc, timeZone);
-        // `nowWita` adalah objek Date yang komponennya (hari, jam) sudah 100% benar sesuai WITA.
-        // =================================================================================
+        // ================== FIX: UBAH NAMA FUNGSI YANG DIPANGGIL ==================
+        const nowWita = toZonedTime(nowUtc, timeZone);
+        // ========================================================================
 
         let attendanceSheetUrl: string | null = null;
         if (attendanceSheetPhotoData) {
@@ -59,7 +59,6 @@ export async function POST(req: Request) {
         
         const timeSettings = await getDbTimeSettings();
         const { checkInStatus } = calculateAttendanceStatus(
-            // Gunakan `toLocaleTimeString` dari `nowWita` yang sudah dikonversi
             nowWita.toLocaleTimeString('en-GB'),
             "00:00:00", 
             shift, 

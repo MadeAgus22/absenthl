@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import type React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Clock, Settings, LogOut, Menu, UserCircle } from "lucide-react";
+import { LayoutDashboard, Clock, Settings, LogOut, Menu, UserCircle, FileText } from "lucide-react";
 import Link from "next/link";
 import useSWR from 'swr';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,6 +44,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Absensi", href: "/attendance", icon: Clock },
     { name: "Akun", href: "/account", icon: UserCircle }, 
+    ...(session.user.role === "admin" ? [{ name: "Laporan", href: "/reports", icon: FileText }] : []),
     ...(session.user.role === "admin" ? [{ name: "Pengaturan", href: "/settings", icon: Settings }] : []),
   ] : [];
   

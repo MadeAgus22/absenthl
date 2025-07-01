@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import DailyReportTab from "./components/daily-report-tab";
 import MonthlyReportTab from "./components/monthly-report-tab";
 import PerformanceReportTab from "./components/performance-report-tab";
+import LogReportTab from './components/log-report-tab';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -52,10 +53,11 @@ export default function ReportsPage() {
             </div>
             
             <Tabs defaultValue="daily" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="daily">Laporan Harian</TabsTrigger>
                     <TabsTrigger value="monthly">Laporan Bulanan</TabsTrigger>
                     <TabsTrigger value="performance">Laporan Kinerja</TabsTrigger>
+                    <TabsTrigger value="log">Laporan Log</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="daily">
@@ -68,6 +70,10 @@ export default function ReportsPage() {
 
                 <TabsContent value="performance">
                     <PerformanceReportTab />
+                </TabsContent>
+                
+                <TabsContent value="log">
+                    <LogReportTab />
                 </TabsContent>
             </Tabs>
         </div>

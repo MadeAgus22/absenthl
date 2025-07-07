@@ -1,34 +1,61 @@
-// app/api/attendance/check-in/route.ts
+// File: app/api/attendance/check-in/route.ts (Versi Final Produksi)
+
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
+import type { Shift, TimeSettings } from "@/lib/types";
+import { put } from '@vercel/blob';
+import { getDbTimeSettings, normalizeDateForShift } from "./utils";
+import { toZonedTime } from 'date-fns-tz';
 
-// Asumsi fungsi untuk mendapatkan pengaturan waktu dari DB
-async function getTimeSettings() {
-    const settings = await db.timeSettings.findMany();
-    const formattedSettings: any = {};
-    settings.forEach(s => {
-        formattedSettings[s.shiftName] = s;
+async function uploadImage(base64Data: string, prefix: string, userId: string): Promise<string> {
+    const filename = `${prefix}-${userId}-${Date.now()}.jpeg`;
+    const buffer = Buffer.from(base64Data.split(',')[1], 'base64');
+    const blob = await put(filename, buffer, {
+        access: 'public',
+        contentType: 'image/jpeg',
     });
-    return formattedSettings;
+    return blob.url;
 }
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { userId, shift, attendanceSheetPhoto, selfiePhoto } = body;
+        const { userId, shift, attendanceSheetPhotoData, selfiePhotoData } = body;
 
-        // Validasi input
         if (!userId || !shift) {
-            return new NextResponse("User ID and shift are required", { status: 400 });
+            return NextResponse.json({ message: "User ID dan shift wajib diisi." }, { status: 400 });
+        }
+
+        const activeCheckIn = await db.attendance.findFirst({
+            where: { userId: userId, checkOutTime: null }
+        });
+        if (activeCheckIn) {
+            return NextResponse.json(
+                { message: "Anda sudah memiliki sesi absensi yang aktif dan belum melakukan check-out." },
+                { status: 409 }
+            );
+        }
+
+        const nowUtc = new Date();
+        const timeZone = 'Asia/Makassar';
+        const nowWita = toZonedTime(nowUtc, timeZone);
+
+        let attendanceSheetUrl: string | null = null;
+        if (attendanceSheetPhotoData) {
+            attendanceSheetUrl = await uploadImage(attendanceSheetPhotoData, 'attendance', userId);
+        }
+        let selfieUrl: string | null = null;
+        if (selfiePhotoData) {
+            selfieUrl = await uploadImage(selfiePhotoData, 'selfie', userId);
         }
         
-        const now = new Date();
-        const timeSettings = await getTimeSettings();
+        const attendanceDate = normalizeDateForShift(nowWita, shift as Shift);
         
+        const timeSettings = await getDbTimeSettings();
         const { checkInStatus } = calculateAttendanceStatus(
-            now.toTimeString().slice(0, 8), 
-            "00:00:00", // Waktu keluar belum ada
+            nowWita.toLocaleTimeString('en-GB'),
+            "00:00:00", 
             shift, 
             timeSettings
         );
@@ -37,10 +64,10 @@ export async function POST(req: Request) {
             data: {
                 userId,
                 shift,
-                date: new Date(now.setHours(0, 0, 0, 0)), // Set tanggal ke awal hari
-                checkInTime: now,
-                attendanceSheetPhoto,
-                selfiePhoto,
+                date: attendanceDate,
+                checkInTime: nowUtc,
+                attendanceSheetPhoto: attendanceSheetUrl,
+                selfiePhoto: selfieUrl,
                 checkInStatus,
                 checkOutStatus: "Belum Absen",
             },
@@ -50,6 +77,9 @@ export async function POST(req: Request) {
 
     } catch (error) {
         console.error("[CHECK_IN_ERROR]", error);
-        return new NextResponse("Internal Server Error", { status: 500 });
+        if (error instanceof Error) {
+             return NextResponse.json({ message: `Terjadi kesalahan internal: ${error.message}` }, { status: 500 });
+        }
+        return NextResponse.json({ message: "Terjadi kesalahan internal." }, { status: 500 });
     }
 }

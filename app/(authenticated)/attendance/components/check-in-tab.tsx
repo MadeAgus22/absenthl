@@ -1,3 +1,5 @@
+// File: app/(authenticated)/attendance/components/check-in-tab.tsx
+
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -8,15 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Camera } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Camera, Info } from "lucide-react"; // Import 'Info' icon
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import 'AlertTitle'
 import type { Shift, TimeSettings, AccessSettings } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 type User = { id: string; name: string; role: string; };
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(res => { if (!res.ok) throw new Error("Gagal memuat data."); return res.json(); });
 
-export default function CheckInTab() {
+// ================= PERUBAHAN 1: Terima prop 'disabled' =================
+export default function CheckInTab({ disabled }: { disabled: boolean }) {
     const { data: session, isLoading: isSessionLoading } = useSWR('/api/auth/session', fetcher);
     const { data: settingsData, isLoading: areSettingsLoading } = useSWR('/api/settings', fetcher);
     const router = useRouter();
@@ -27,7 +31,6 @@ export default function CheckInTab() {
     const [successMessage, setSuccessMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     
-    // State dan Ref untuk kamera
     const [backCameraActive, setBackCameraActive] = useState(false);
     const [frontCameraActive, setFrontCameraActive] = useState(false);
     const [backCameraImage, setBackCameraImage] = useState<string | null>(null);
@@ -55,7 +58,6 @@ export default function CheckInTab() {
     }, []);
 
     useEffect(() => {
-        // Fungsi cleanup: akan berjalan saat komponen di-unmount
         return () => {
             stopAllStreams();
         }
@@ -113,34 +115,58 @@ export default function CheckInTab() {
         stopAllStreams();
     };
     
-    const uploadImage = async (image: string | null, type: 'attendance' | 'selfie'): Promise<string | null> => {
-        if (!image) return null;
-        const response = await fetch(image);
-        const blob = await response.blob();
-        const filename = `${type}-${user?.id}-${Date.now()}.jpg`;
-        const uploadResponse = await fetch(`/api/upload?filename=${filename}`, { method: 'POST', body: blob });
-        if (!uploadResponse.ok) throw new Error(`Gagal mengunggah foto ${type}.`);
-        const newBlob = await uploadResponse.json();
-        return newBlob.url;
-    };
+    // const uploadImage = async (image: string | null, type: 'attendance' | 'selfie'): Promise<string | null> => {
+    //     if (!image) return null;
+    //     const response = await fetch(image);
+    //     const blob = await response.blob();
+    //     const filename = `${type}-${user?.id}-${Date.now()}.jpg`;
+    //     const uploadResponse = await fetch(`/api/upload?filename=${filename}`, { method: 'POST', body: blob });
+    //     if (!uploadResponse.ok) throw new Error(`Gagal mengunggah foto ${type}.`);
+    //     const newBlob = await uploadResponse.json();
+    //     return newBlob.url;
+    // };
 
-    const handleCheckIn = async (e: React.FormEvent) => {
+     const handleCheckIn = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErrorMessage(""); setSuccessMessage("");
-        if (!shift) return setErrorMessage("Silakan pilih shift.");
-        if (accessSettings?.requirePhotoForCheckIn && (!backCameraImage || !frontCameraImage)) {
-            return setErrorMessage("Foto lembar absensi dan swafoto wajib diambil.");
+        if (!shift) {
+            toast.error("Silakan pilih shift terlebih dahulu.");
+            return;
         }
+        if (accessSettings?.requirePhotoForCheckIn && (!backCameraImage || !frontCameraImage)) {
+            toast.error("Foto lembar absensi dan swafoto wajib diambil.");
+            return;
+        }
+
+        const toastId = toast.loading("Mencatat absen masuk...");
         setIsSubmitting(true);
         try {
-            const attendanceSheetUrl = accessSettings?.requirePhotoForCheckIn ? await uploadImage(backCameraImage, 'attendance') : null;
-            const selfieUrl = accessSettings?.requirePhotoForCheckIn ? await uploadImage(frontCameraImage, 'selfie') : null;
-            const res = await fetch('/api/attendance/check-in', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?.id, shift, attendanceSheetPhoto: attendanceSheetUrl, selfiePhoto: selfieUrl }) });
-            if (!res.ok) { const err = await res.json(); throw new Error(err.message || 'Gagal mencatat absen masuk.'); }
-            setSuccessMessage("Absen masuk berhasil dicatat!");
-            setTimeout(() => router.push("/dashboard"), 2000);
+            // Hapus panggilan uploadImage dari sini
+            // const attendanceSheetUrl = ...
+            // const selfieUrl = ...
+
+            // Kirim data gambar (base64) langsung ke backend
+            const res = await fetch('/api/attendance/check-in', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ 
+                    userId: user?.id, 
+                    shift, 
+                    // Kirim data gambar sebagai string
+                    attendanceSheetPhotoData: backCameraImage, 
+                    selfiePhotoData: frontCameraImage 
+                }) 
+            });
+            
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.message || 'Gagal mencatat absen masuk.');
+            }
+            
+            toast.success("Absen masuk berhasil dicatat!", { id: toastId });
+            setTimeout(() => router.push("/dashboard"), 1500);
         } catch (err: any) {
-            setErrorMessage(err.message);
+            toast.error(err.message, { id: toastId });
         } finally {
             setIsSubmitting(false);
         }
@@ -179,6 +205,26 @@ export default function CheckInTab() {
             </div>
         );
     };
+
+    // ================= PERUBAHAN 2: Tampilkan pesan jika form dinonaktifkan =================
+    if (disabled) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Absen Masuk</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>Sesi Aktif Ditemukan</AlertTitle>
+                        <AlertDescription>
+                            Anda sudah melakukan absen masuk. Silakan selesaikan sesi Anda dengan melakukan Absen Keluar.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
+    }
     
     if (isSessionLoading || areSettingsLoading) {
         return <Card><CardHeader><Skeleton className="h-8 w-48" /><Skeleton className="h-4 w-64" /></CardHeader><CardContent><Skeleton className="w-full h-96" /></CardContent></Card>;

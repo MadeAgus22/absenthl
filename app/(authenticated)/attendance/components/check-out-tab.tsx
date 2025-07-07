@@ -1,3 +1,5 @@
+// File: app/(authenticated)/attendance/components/check-out-tab.tsx
+
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -8,13 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Camera } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Plus, Trash2, Camera, Info } from "lucide-react"; // Import 'Info' icon
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import 'AlertTitle'
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(res => { if (!res.ok) throw new Error("Gagal memuat data."); return res.json(); });
 
-export default function CheckOutTab() {
+// ================= PERUBAHAN 1: Terima props 'disabled' dan 'activeCheckInData' =================
+export default function CheckOutTab({ disabled, activeCheckInData }: { disabled: boolean, activeCheckInData?: any }) {
     const { data: session, isLoading: isSessionLoading } = useSWR('/api/auth/session', fetcher);
     const router = useRouter();
     const user = session?.user;
@@ -100,43 +105,90 @@ export default function CheckOutTab() {
     const handleLogbookChange = (index: number, value: string) => { const newEntries = [...logbookEntries]; newEntries[index] = value; setLogbookEntries(newEntries); };
     const addLogbookEntry = () => { setLogbookEntries([...logbookEntries, ""]); };
     const removeLogbookEntry = (index: number) => {
-        if (logbookEntries.length <= 1) { setErrorMessage("Minimal harus ada 1 entri logbook."); setTimeout(() => setErrorMessage(""), 3000); return; }
+        if (logbookEntries.length <= 3) { setErrorMessage("Minimal harus ada 3 entri logbook."); setTimeout(() => setErrorMessage(""), 3000); return; }
         setLogbookEntries(logbookEntries.filter((_, i) => i !== index));
     };
 
     const handleCheckOut = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErrorMessage(""); setSuccessMessage("");
-        if (logbookEntries.some(entry => entry.trim() === '')) return setErrorMessage("Semua entri logbook harus diisi.");
-        if (!selfieImage) return setErrorMessage("Swafoto saat absen keluar wajib diambil.");
+        if (logbookEntries.some(entry => entry.trim() === '')) {
+            toast.error("Semua entri logbook harus diisi.");
+            return;
+        }
+        if (!selfieImage) {
+            toast.error("Swafoto saat absen keluar wajib diambil.");
+            return;
+        }
         
+        const toastId = toast.loading("Mencatat absen keluar...");
         setIsSubmitting(true);
         try {
-            const selfieUrl = await uploadImage(selfieImage);
+            // Hapus panggilan uploadImage dari sini
+            // const selfieUrl = await uploadImage(selfieImage);
+
+            // Kirim data gambar (base64) langsung ke backend
             const res = await fetch('/api/attendance/check-out', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     userId: user?.id, 
                     logbookEntries: logbookEntries.filter(e => e.trim()),
-                    checkOutSelfiePhotoUrl: selfieUrl
+                    // Ganti nama properti untuk menandakan ini adalah data, bukan URL
+                    checkOutSelfiePhotoData: selfieImage 
                 }),
             });
-            if (!res.ok) { const err = await res.json(); throw new Error(err.message || 'Gagal mencatat absen keluar.'); }
-            setSuccessMessage("Absen keluar berhasil dicatat!");
-            setTimeout(() => router.push("/dashboard"), 2000);
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Gagal mencatat absen keluar.');
+            }
+            toast.success("Absen keluar berhasil dicatat!", { id: toastId });
+            setTimeout(() => router.push("/dashboard"), 1500);
         } catch (err: any) {
-            setErrorMessage(err.message);
+            toast.error(err.message, { id: toastId });
         } finally {
             setIsSubmitting(false);
         }
     };
+    
+    // ================= PERUBAHAN 2: Tampilkan pesan jika form dinonaktifkan =================
+    if (disabled) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Absen Keluar</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Alert variant="destructive">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>Tidak Ada Sesi Aktif</AlertTitle>
+                        <AlertDescription>
+                            Anda belum melakukan absen masuk. Silakan lakukan Absen Masuk terlebih dahulu.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
+    }
     
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Absen Keluar</CardTitle>
                 <CardDescription>Isi logbook dan ambil swafoto untuk absen keluar.</CardDescription>
+                <CardDescription>Format Logbook: Yang Dibantu_Aktifitas_Keterangan</CardDescription>
+                <CardDescription>Contoh: Perawat_Membantu menyelesaikan ..._Status Selesai/RMpasien</CardDescription>
+                {/* Tampilkan info sesi aktif */}
+                {activeCheckInData && (
+                    <div className="pt-2">
+                       <Alert variant="default" className="border-sky-200 dark:border-sky-800">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>Anda Masuk pada Shift <Badge variant="secondary">{activeCheckInData.shift}</Badge></AlertTitle>
+                        <AlertDescription>
+                          Jam masuk tercatat pukul: {new Date(activeCheckInData.checkInTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
+                        </AlertDescription>
+                       </Alert>
+                    </div>
+                )}
             </CardHeader>
             <form onSubmit={handleCheckOut}>
                 <CardContent className="space-y-4">
@@ -147,10 +199,9 @@ export default function CheckOutTab() {
                     
                     <div className="space-y-2">
                         <div className="flex items-center justify-between"><Label>Logbook Kegiatan</Label><Button type="button" variant="outline" size="sm" onClick={addLogbookEntry}><Plus className="h-4 w-4 mr-1" /> Tambah Entri</Button></div>
-                        <div className="space-y-3">{logbookEntries.map((entry, index) => (<div key={index} className="flex items-start gap-2"><Textarea placeholder={`Kegiatan ${index + 1}`} value={entry} onChange={(e) => handleLogbookChange(index, e.target.value)} className="flex-1" required />{logbookEntries.length > 1 && (<Button type="button" variant="ghost" size="icon" onClick={() => removeLogbookEntry(index)}><Trash2 className="h-4 w-4" /></Button>)}</div>))}</div>
+                        <div className="space-y-3">{logbookEntries.map((entry, index) => (<div key={index} className="flex items-start gap-2"><Textarea placeholder={`Kegiatan ${index + 1}`} value={entry} onChange={(e) => handleLogbookChange(index, e.target.value)} className="flex-1" required /><Button type="button" variant="ghost" size="icon" onClick={() => removeLogbookEntry(index)} disabled={logbookEntries.length <= 1}><Trash2 className="h-4 w-4" /></Button></div>))}</div>
                     </div>
 
-                    {/* --- UI KAMERA DITAMBAHKAN DI SINI --- */}
                     <div className="space-y-2">
                         <Label>Swafoto Absen Keluar</Label>
                         <div className="border rounded-md p-4 space-y-4">

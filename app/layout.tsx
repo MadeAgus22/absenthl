@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner" // 1. Impor komponen Toaster
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -19,9 +20,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/kemenkes-logo.png" type="image/png" />
+      </head>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <ThemeProvider 
+          attribute="class" 
+          defaultTheme="light" 
+          enableSystem 
+          disableTransitionOnChange
+        >
           {children}
+          {/* 2. Tambahkan komponen Toaster di sini */}
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>

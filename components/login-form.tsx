@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+// PERBAIKAN: Impor komponen PasswordInput yang baru kita buat
+import { PasswordInput } from "@/components/ui/password-input"
 
 export default function LoginForm() {
   const [username, setUsername] = useState("")
@@ -31,7 +33,7 @@ export default function LoginForm() {
 
       if (response.ok) {
         // Login berhasil, token sudah di-set di cookie oleh server
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       } else {
         const data = await response.json();
         setError(data.message || "Username atau password salah.");
@@ -70,9 +72,9 @@ export default function LoginForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
+            {/* PERBAIKAN: Ganti Input standar dengan komponen PasswordInput */}
+            <PasswordInput
               id="password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -82,7 +84,7 @@ export default function LoginForm() {
         </CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Logging in..." : "Login"}
+            {isLoading ? "Memproses..." : "Login"}
           </Button>
         </CardFooter>
       </form>

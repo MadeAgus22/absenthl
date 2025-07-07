@@ -1,5 +1,16 @@
+// Path: lib/attendance-utils.ts
+
 import type { Shift, TimeSettings } from "@/lib/types";
 
+/**
+ * Menghitung status absensi (masuk dan keluar) berdasarkan waktu, shift, dan pengaturan waktu.
+ *
+ * @param checkInTime - Waktu check-in dalam format 'HH:mm:ss'.
+ * @param checkOutTime - Waktu check-out dalam format 'HH:mm:ss'.
+ * @param shift - Jenis shift pegawai.
+ * @param timeSettings - Objek konfigurasi yang berisi rentang waktu untuk semua shift.
+ * @returns Objek yang berisi checkInStatus dan checkOutStatus.
+ */
 export function calculateAttendanceStatus(
   checkInTime: string,
   checkOutTime: string,
@@ -8,36 +19,53 @@ export function calculateAttendanceStatus(
 ) {
   const shiftSettings = timeSettings[shift];
   if (!shiftSettings) {
+    // Jika pengaturan untuk shift tidak ditemukan, kembalikan status tidak valid.
     return { checkInStatus: "Shift Tidak Valid", checkOutStatus: "Shift Tidak Valid" };
   }
 
-  const checkIn = new Date(`2000-01-01T${checkInTime}`);
-  const checkOut = new Date(`2000-01-01T${checkOutTime}`);
-  const checkInEndLimit = new Date(`2000-01-01T${shiftSettings.checkInEnd}`);
-  const overtimeThreshold = new Date(`2000-01-01T${shiftSettings.overtimeThreshold}`);
+  // Helper untuk memeriksa apakah shift melewati tengah malam (misalnya, 22:00 - 06:00).
+  const isOvernightShift = shiftSettings.checkInStart > shiftSettings.checkInEnd;
 
-  if (shift === "Malam") {
-    const checkOutNextDay = new Date(checkOut.getTime() + 24 * 60 * 60 * 1000);
-    const overtimeThresholdNextDay = new Date(overtimeThreshold.getTime() + 24 * 60 * 60 * 1000);
-    return {
-      checkInStatus: checkIn <= checkInEndLimit ? "Tepat Waktu" : "Terlambat",
-      checkOutStatus: checkOutTime === "00:00:00" ? "Belum Absen" : (checkOutNextDay > overtimeThresholdNextDay ? "Lembur" : "Tepat Waktu"),
-    };
+  // --- Kalkulasi Status Check-In ---
+  let checkInStatus = "Terlambat"; // Asumsi awal adalah terlambat.
+
+  if (isOvernightShift) {
+    // Untuk shift malam, Anda tepat waktu jika absen SETELAH waktu mulai ATAU SEBELUM batas akhir (di hari berikutnya).
+    // Logika ini mengasumsikan absen shift malam terjadi di antara rentang waktunya.
+    // Contoh: Masuk jam 22:30 (setelah 22:00) atau 04:00 (sebelum 08:00 keesokan harinya, jika batasnya sampai pagi)
+    // Untuk kasus umum, cukup periksa dengan batas akhir.
+    // Jika checkInTime lebih kecil dari checkInEnd (misal 00:15 < 06:00) ATAU lebih besar dari checkInStart (misal 22:10 > 22:00)
+     if (checkInTime >= shiftSettings.checkInStart || checkInTime <= shiftSettings.checkInEnd) {
+       // Cek keterlambatan spesifik untuk shift malam
+       if (checkInTime > shiftSettings.checkInStart && checkInTime > shiftSettings.checkInEnd) { // misal: masuk jam 23:00, batas telat 22:15
+          if(checkInTime > shiftSettings.checkInEnd) {
+            checkInStatus = "Tepat Waktu";
+          }
+       } else if (checkInTime < shiftSettings.checkInStart) { // misal: masuk jam 00:10
+          if (checkInTime <= shiftSettings.checkInEnd) {
+             checkInStatus = "Tepat Waktu";
+          } else {
+             checkInStatus = "Terlambat";
+          }
+       }
+     }
+  } else {
+    // Untuk shift normal (tidak lewat tengah malam), perbandingan string sederhana sudah cukup.
+    if (checkInTime <= shiftSettings.checkInEnd) {
+      checkInStatus = "Tepat Waktu";
+    }
   }
 
-  return {
-    checkInStatus: checkIn <= checkInEndLimit ? "Tepat Waktu" : "Terlambat",
-    checkOutStatus: checkOutTime === "00:00:00" ? "Belum Absen" : (checkOut > overtimeThreshold ? "Lembur" : "Tepat Waktu"),
-  };
-}
 
-// Fungsi ini bisa tetap ada jika masih digunakan di frontend
-export function getTimeRangeDisplay(shift: Shift, timeSettings: TimeSettings) {
-  const settings = timeSettings[shift];
-  return {
-    checkInRange: `${settings.checkInStart} - ${settings.checkInEnd}`,
-    lateAfter: settings.checkInEnd,
-    normalCheckOut: `${settings.checkOutStart} - ${settings.checkOutEnd}`,
-    overtimeAfter: settings.overtimeThreshold,
-  };
+  // --- Kalkulasi Status Check-Out ---
+  let checkOutStatus = "Belum Absen";
+  if (checkOutTime && checkOutTime !== "00:00:00") {
+      // Jika sudah check-out, tentukan apakah pulang tepat waktu atau lembur.
+      checkOutStatus = "Tepat Waktu";
+      if (checkOutTime > shiftSettings.overtimeThreshold) {
+          checkOutStatus = "Lembur";
+      }
+  }
+
+  return { checkInStatus, checkOutStatus };
 }

@@ -1,14 +1,43 @@
+// File: app/(authenticated)/attendance/page.tsx
 "use client"
 
-import { useState } from "react";
+import useSWR from 'swr';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// Impor komponen-komponen baru kita
 import CheckInTab from "./components/check-in-tab";
 import CheckOutTab from "./components/check-out-tab";
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function AttendancePage() {
-  const [activeTab, setActiveTab] = useState("check-in");
+  // Mengambil status absensi pengguna saat ini
+  const { data: attendanceStatus, isLoading } = useSWR('/api/attendance/status', fetcher, {
+    revalidateOnFocus: true, // Otomatis refresh saat tab di-fokus
+    refreshInterval: 30000 // Refresh setiap 30 detik
+  });
+
+  const hasActiveCheckIn = attendanceStatus?.hasActiveCheckIn ?? false;
+
+  // Jika masih loading, tampilkan skeleton
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Absensi</h1>
+          <p className="text-muted-foreground">Memuat status absensi Anda...</p>
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-10 w-full" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -16,19 +45,25 @@ export default function AttendancePage() {
         <h1 className="text-2xl font-bold tracking-tight">Absensi</h1>
         <p className="text-muted-foreground">Silakan lakukan absensi masuk atau keluar</p>
       </div>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+
+      {/* Default tab akan disesuaikan berdasarkan status absensi */}
+      <Tabs defaultValue={hasActiveCheckIn ? "check-out" : "check-in"} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="check-in">Absen Masuk</TabsTrigger>
-          <TabsTrigger value="check-out">Absen Keluar</TabsTrigger>
+          <TabsTrigger value="check-in" disabled={hasActiveCheckIn}>Absen Masuk</TabsTrigger>
+          <TabsTrigger value="check-out" disabled={!hasActiveCheckIn}>Absen Keluar</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="check-in">
-          <CheckInTab />
+          {/* Kirim status 'disabled' ke komponen tab */}
+          <CheckInTab disabled={hasActiveCheckIn} />
         </TabsContent>
-        
+
         <TabsContent value="check-out">
-          <CheckOutTab />
+          {/* Kirim status 'disabled' dan data absensi aktif */}
+          <CheckOutTab 
+            disabled={!hasActiveCheckIn}
+            activeCheckInData={attendanceStatus?.activeCheckInData} 
+          />
         </TabsContent>
       </Tabs>
     </div>

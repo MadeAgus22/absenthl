@@ -78,7 +78,8 @@ export default function DashboardPage() {
     return dateUTC.toLocaleTimeString("id-ID", {
         timeZone: "Asia/Makassar", // WITA
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        hour12: false
     });
 };
 

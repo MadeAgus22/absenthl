@@ -1,14 +1,9 @@
 "use client"
-
 import type React from "react"
 import { createContext, useContext } from "react"
 
 type Session = {
-  user?: {
-    id: string;
-    name: string;
-    role: string;
-  }
+  user?: { id: string; name: string; role: string; }
 }
 
 const SessionContext = createContext<Session | null>(null);

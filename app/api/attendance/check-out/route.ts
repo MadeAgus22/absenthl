@@ -3,11 +3,10 @@
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { calculateAttendanceStatus } from "@/lib/attendance-utils";
-import type { Shift, TimeSettings } from "@/lib/types";
+import type { Shift } from "@/lib/types";
 import { put } from '@vercel/blob';
-import { getDbTimeSettings } from "./utils"; // Impor fungsi helper yang sudah ada
+import { getDbTimeSettings } from "./utils";
 
-// Fungsi untuk upload gambar
 async function uploadImage(base64Data: string, prefix: string, userId: string): Promise<string> {
     const filename = `${prefix}-${userId}-${Date.now()}.jpeg`;
     const buffer = Buffer.from(base64Data.split(',')[1], 'base64');
@@ -23,38 +22,33 @@ async function uploadImage(base64Data: string, prefix: string, userId: string): 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, logbookEntries, checkOutSelfiePhotoData } = body;
+        // --- PERUBAHAN: Hanya butuh userId dan foto ---
+        const { userId, checkOutSelfiePhotoData } = body;
 
-        // Validasi input
-        if (!userId || !logbookEntries ) {
-            return NextResponse.json({ message: "User ID dan Logbook wajib diisi." }, { status: 400 });
+        if (!userId || !checkOutSelfiePhotoData) {
+            return NextResponse.json({ message: "User ID dan Swafoto wajib diisi." }, { status: 400 });
         }
-        if (!Array.isArray(logbookEntries) || logbookEntries.length < 3) {
-            return NextResponse.json({ message: "Minimal 3 Kegiatan y gais." }, { status: 400 });
-        }
-        if (!checkOutSelfiePhotoData) {
-            return NextResponse.json({ message: "Swafoto/selfie absen keluar wajib diisi." }, { status: 400 });
-        }
-
-        // 1. Cari data absen masuk yang aktif
+        
         const lastCheckIn = await db.attendance.findFirst({
             where: { userId: userId, checkOutTime: null },
-            orderBy: { checkInTime: 'desc' },
+            include: { _count: { select: { logbook: true } } } // Hitung logbook yang ada
         });
 
         if (!lastCheckIn) {
             return NextResponse.json({ message: "Tidak ditemukan data absen masuk yang aktif." }, { status: 404 });
         }
+
+        // Validasi jumlah logbook langsung dari database
+        if (lastCheckIn._count.logbook < 3) {
+            return NextResponse.json({ message: "Minimal 3 kegiatan harus tersimpan di database sebelum check-out." }, { status: 400 });
+        }
         
-        // 2. Upload foto
         const checkOutSelfieUrl = await uploadImage(checkOutSelfiePhotoData, 'checkout-selfie', userId);
 
-        // 3. Logika status dan waktu
-        const now = new Date(); // Waktu aktual server (WITA)
+        const now = new Date();
         const timeSettings = await getDbTimeSettings();
         const shift = lastCheckIn.shift as Shift;
 
-        // Gunakan objek Date langsung untuk konsistensi, bukan string
         const { checkOutStatus } = calculateAttendanceStatus(
             lastCheckIn.checkInTime.toLocaleTimeString('en-GB'),
             now.toLocaleTimeString('en-GB'),
@@ -62,16 +56,13 @@ export async function POST(req: NextRequest) {
             timeSettings
         );
 
-        // 4. Update record di database
+        // --- PERUBAHAN: Tidak ada lagi create logbook di sini ---
         const updatedAttendance = await db.attendance.update({
             where: { id: lastCheckIn.id },
             data: {
-                checkOutTime: now, // Langsung simpan objek Date saat ini
+                checkOutTime: now,
                 checkOutStatus: checkOutStatus,
                 checkOutSelfiePhoto: checkOutSelfieUrl,
-                logbook: {
-                    create: logbookEntries.map((entry: string) => ({ content: entry })),
-                },
             },
         });
 

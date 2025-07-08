@@ -1,15 +1,9 @@
 import { db } from "@/lib/db";
-// --- PERBAIKAN 1: Impor NextRequest ---
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
-// Hapus atau komentari baris ini jika ada:
-// import { cookies } from "next/headers";
-
-// --- PERBAIKAN 2: Tambahkan parameter 'req: NextRequest' ---
 export async function GET(req: NextRequest) {
     try {
-        // --- PERBAIKAN 3: Ambil token dari 'req.cookies' ---
         const token = req.cookies.get('token')?.value;
 
         if (!token) {
@@ -41,10 +35,20 @@ export async function GET(req: NextRequest) {
 
         const records = await db.attendance.findMany({
             where: whereClause,
+            // --- PERBAIKAN DI SINI ---
             include: {
                 user: { select: { name: true } },
-                logbook: { select: { content: true } }
+                logbook: { 
+                  select: { 
+                    location: true,
+                    division: true,
+                    personAssisted: true,
+                    activity: true
+                  },
+                  orderBy: { createdAt: 'asc' }
+                }
             },
+            // --- AKHIR PERBAIKAN ---
             orderBy: { date: 'desc' },
             take: limit,
             skip: skip,

@@ -42,11 +42,18 @@ model Attendance {
   @@index([userId, date])
 }
 
+// Model LogbookEntry yang BARU
 model LogbookEntry {
-  id            String      @id @default(cuid())
-  content       String
-  attendanceId  String
-  attendance    Attendance  @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  id             String     @id @default(cuid())
+  location       String     // <-- Kolom Baru: Lokasi/Gedung
+  division       String     // <-- Kolom Baru: Divisi/Ruangan
+  personAssisted String     // <-- Kolom Baru: Yang Dibantu
+  activity       String     // <-- Kolom Baru: Aktifitas
+  createdAt      DateTime   @default(now()) // <-- Timestamp saat dibuat
+  updatedAt      DateTime   @updatedAt // <-- Timestamp saat diubah
+
+  attendanceId String
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
 }
 
 // Model untuk pengaturan aplikasi

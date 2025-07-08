@@ -18,6 +18,8 @@ export default function AttendancePage() {
   });
 
   const hasActiveCheckIn = attendanceStatus?.hasActiveCheckIn ?? false;
+  // Ambil ID unik dari data absensi yang aktif
+  const activeCheckInId = attendanceStatus?.activeCheckInData?.id;
 
   // Jika masih loading, tampilkan skeleton
   if (isLoading) {
@@ -59,8 +61,9 @@ export default function AttendancePage() {
         </TabsContent>
 
         <TabsContent value="check-out">
-          {/* Kirim status 'disabled' dan data absensi aktif */}
+          {/* --- PERBAIKAN DI SINI: Tambahkan prop 'key' --- */}
           <CheckOutTab 
+            key={activeCheckInId || 'no-session'} // Ini akan mereset komponen saat ID berubah
             disabled={!hasActiveCheckIn}
             activeCheckInData={attendanceStatus?.activeCheckInData} 
           />

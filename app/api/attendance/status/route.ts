@@ -12,31 +12,36 @@ export async function GET(req: NextRequest) {
         
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
         
-        // Cari data absensi terakhir yang BELUM ada checkOutTime-nya
         const activeCheckIn = await db.attendance.findFirst({
             where: {
                 userId: decoded.id,
                 checkOutTime: null,
             },
+            // --- PERUBAHAN DI SINI ---
+            include: {
+                logbook: { // Sertakan data logbook yang sudah ada
+                    orderBy: {
+                        createdAt: 'asc'
+                    }
+                }
+            },
+            // --- AKHIR PERUBAHAN ---
             orderBy: {
                 checkInTime: 'desc',
             },
         });
 
         if (activeCheckIn) {
-            // Jika ditemukan, kirim status bahwa ada absensi aktif
             return NextResponse.json({
                 hasActiveCheckIn: true,
                 activeCheckInData: activeCheckIn,
             });
         }
 
-        // Jika tidak ada, kirim status bahwa tidak ada absensi aktif
         return NextResponse.json({ hasActiveCheckIn: false });
 
     } catch (error) {
         console.error("[GET_ATTENDANCE_STATUS_ERROR]", error);
-        // Jika token tidak valid atau ada error lain
         if (error instanceof jwt.JsonWebTokenError) {
              return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
         }

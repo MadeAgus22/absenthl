@@ -28,24 +28,32 @@ export async function GET(req: NextRequest) {
           lt: nextDate,
         },
       },
-      // ================== PASTIKAN BAGIAN INI SUDAH BENAR ==================
+      // --- INI BAGIAN YANG DIPERBAIKI ---
       include: {
         user: {
           select: { name: true },
         },
-        // Kita harus mengambil 'content' dari logbook agar tidak kosong
+        // Ambil semua data logbook yang terstruktur sesuai skema baru
         logbook: {
           select: {
-            content: true,
+            location: true,
+            division: true,
+            personAssisted: true,
+            activity: true,
+            createdAt: true,
           },
+           orderBy: {
+            createdAt: 'asc'
+          }
         },
       },
-      // ====================================================================
+      // --- AKHIR PERBAIKAN ---
       orderBy: {
         ...(sortBy === 'checkInTime' && { checkInTime: sortOrder as 'asc' | 'desc' }),
       }
     });
 
+    // Kode di bawah ini sudah benar dan tidak perlu diubah
     let data = records.map(record => ({
         ...record,
         logbookCount: record.logbook.length,

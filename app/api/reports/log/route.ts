@@ -1,5 +1,3 @@
-// File: app/api/reports/log/route.ts
-
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -26,38 +24,41 @@ export async function GET(req: NextRequest) {
       user: {
         name: {
           contains: searchQuery,
-          mode: 'insensitive', // Pencarian case-insensitive
+          mode: 'insensitive',
         },
       },
-      // Hanya ambil data absensi yang memiliki logbook
       logbook: {
         some: {},
       }
     };
 
-    // Jika limit 'all', 'take' akan undefined (ambil semua data)
-    // Jika tidak, parse limitnya (default 50)
     const take = limitParam === 'all' ? undefined : parseInt(limitParam || '50', 10);
 
     const records = await db.attendance.findMany({
       where: whereClause,
       select: {
         id: true,
-        date: true,
         user: {
           select: { name: true },
         },
+        // --- PERUBAHAN DI SINI: Ambil semua field dari logbook ---
         logbook: {
-          select: { content: true },
+          select: { 
+            location: true,
+            division: true,
+            personAssisted: true,
+            activity: true,
+            createdAt: true // Ambil timestamp
+          },
           orderBy: {
-            id: 'asc'
+            createdAt: 'asc' // Urutkan log berdasarkan waktu dibuat
           }
         },
       },
       orderBy: {
         date: 'desc',
       },
-      take: take, // Gunakan 'take' untuk limitasi data
+      take: take,
     });
 
     return NextResponse.json(records);

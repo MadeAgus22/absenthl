@@ -55,7 +55,7 @@ export default function ReportsPage() {
             <Tabs defaultValue="daily" className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="daily">Laporan Harian</TabsTrigger>
-                    <TabsTrigger value="monthly">Laporan Bulanan</TabsTrigger>
+{/*                     <TabsTrigger value="monthly">Laporan Bulanan</TabsTrigger> */}
                     <TabsTrigger value="performance">Laporan Kinerja</TabsTrigger>
                     <TabsTrigger value="log">Laporan Log</TabsTrigger>
                 </TabsList>
